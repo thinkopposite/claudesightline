@@ -777,10 +777,13 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.2';
+const VERSION='2026.09.27.3';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
+// When the defaults change (DREV goes up), each browser starts once from the new default bowl; saved options are kept.
+const DREV=2;let NEWDEF=false;
+try{if((+localStorage.getItem('sightline-defaults-rev')||0)<DREV){NEWDEF=!!P;P=null;localStorage.setItem('sightline-defaults-rev',String(DREV));}}catch(e){}
 if(!P)P=defaults();
 const $=id=>document.getElementById(id);
 function persist(){try{localStorage.setItem(KEY,JSON.stringify({P,OPTS}))}catch(e){}}
@@ -1161,6 +1164,7 @@ new MutationObserver(ms=>{for(const m of ms){if(m.type==='characterData'){const 
 document.querySelectorAll('title').forEach(t=>t.textContent=titleCase(t.textContent));
 
 renderUnits();renderControls();update();titleize(document.body);
+if(NEWDEF)toast('Started from the new default bowl. Saved options are unchanged.');
 // saved options live in this browser; back them up to move between computers
 $('bkOpt').onclick=()=>{const d=new Date(),pad=n=>String(n).padStart(2,'0');
   offer(`sightline-options-${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}.json`,new Blob([JSON.stringify({app:'Sightline Schematic',version:VERSION,P,OPTS},null,1)],{type:'application/json'}));};

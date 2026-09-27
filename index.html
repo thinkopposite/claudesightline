@@ -142,7 +142,6 @@ a.btnlink:hover{border-color:var(--ink)}
     <div class="legend">
       <span><i style="background:var(--sl-ok);height:1px"></i>Sightline, C-value at or above minimum</span>
       <span><i style="background:var(--sl-low);height:1px"></i>Sightline, C-value below minimum</span>
-      <span><i style="background:var(--sl-block);height:1px"></i>Sightline blocked by spectators in front</span>
       <span id="lgEye"><i style="background:var(--eye-sit);border-radius:50%;width:9px;height:9px"></i>Seated eye</span>
       <span><i style="background:#FF0000"></i>Point of focus line</span>
       <span><i style="background:var(--pitch);height:8px"></i>Pitch</span>
@@ -663,9 +662,7 @@ function applyEyes(rows){const mode=P.eyeMode==='stand'?'stand':'sit';
     if(r.C!=null&&p)r.C=r.ez*p.ex/r.ex-p.ez;
     if(r.railC!=null)r.railC=r.ez*r.x/r.ex-(r.z+P.railH);});
   return rows;}
-function markBlocked(rows){rows.forEach((r,i)=>{r.blocked=false;
-  for(let j=0;j<rows.length;j++){const q=rows[j];if(j===i||q.ex>=r.ex)continue;if(q.ez>=r.ez*q.ex/r.ex-1e-6){r.blocked=true;break;}}});return rows;}
-const solveAll=P=>Object.fromEntries(zoneKeys(P).map(k=>[k,markBlocked(applyEyes(solveZone(P,k)))]));
+const solveAll=P=>Object.fromEntries(zoneKeys(P).map(k=>[k,applyEyes(solveZone(P,k))]));
 // Upper tiers keep an absolute distance from the point of focus (X). Any tier without one takes its current position.
 function pinUpperTiers(P){const Q=Object.assign({},P,{tierCount:3});
   for(const k of GEO){if(!P.zt.slice(1).some(t=>t.z[k].X==null))continue;const zr=solveZone(Q,k);
@@ -842,7 +839,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.17';
+const VERSION='2026.09.27.18';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1062,7 +1059,7 @@ function drawSection(rows,o={}){
     s+=`<line x1="${X(f.x)}" y1="${Y(f.z)}" x2="${X(f.x)}" y2="${Y(f.z+P.railH)}" stroke="${f.railC<0?'var(--fail)':'var(--ink)'}" stroke-width="2.4" vector-effect="non-scaling-stroke"><title>Guard ${L(P.railH)}</title></line>`;});
   rows.forEach(r=>{const tf=Math.min(fs*.28,r.T*.3);                               // row numbers: above their tread, clear of the riser behind
     s+=`<text x="${X(r.x+r.T*.35)}" y="${(+Y(r.z)-tf*.3).toFixed(0)}" font-size="${tf.toFixed(0)}" fill="var(--ink)" opacity=".8" text-anchor="middle" font-weight="600">${r.row}</text>`;});
-  rows.forEach(r=>s+=`<line x1="${X(r.ex)}" y1="${Y(r.ez)}" x2="${X(0)}" y2="${Y(0)}" stroke="${r.blocked?'var(--sl-block)':status(r)==='pass'||status(r)==='front'?'var(--sl-ok)':'var(--sl-low)'}" stroke-width="0.7" vector-effect="non-scaling-stroke"/>`);   // sightlines: blue meets the minimum C-value, red is below it, pink is blocked by spectators in front
+  rows.forEach(r=>s+=`<line x1="${X(r.ex)}" y1="${Y(r.ez)}" x2="${X(0)}" y2="${Y(0)}" stroke="${status(r)==='pass'||status(r)==='front'?'var(--sl-ok)':'var(--sl-low)'}" stroke-width="0.7" vector-effect="non-scaling-stroke"/>`);   // sightlines by C-value only: blue meets the minimum, red is below it
   const stand=P.eyeMode==='stand';                                  // one mode at a time: its eye dots and its sightlines only
   rows.forEach(r=>{const tip=`Tier ${r.tier+1} row ${r.row}${r.C!=null?', C '+L(r.C):r.railC!=null?', clears guard by '+L(r.railC):''}`;
     s+=`<circle cx="${X(r.ex)}" cy="${Y(r.ez)}" r="${dot}" fill="var(${stand?'--eye-stand':'--eye-sit'})"${stand?' stroke="var(--eye-sit)" stroke-width="0.5" vector-effect="non-scaling-stroke"':''}><title>${stand?'Standing':'Seated'} eye, ${tip}</title></circle>`;});
@@ -1194,7 +1191,7 @@ function update(){
   const perZone=(pred,what)=>{const c=zoneKeys(P).map(k=>[k,ZR[k].filter(pred).length]).filter(x=>x[1]);if(!c.length)return;
     const same=c.length===zoneKeys(P).length&&c.every(x=>x[1]===c[0][1]),n=c[0][1];
     msg.push(same?`${n} row${n>1?'s':''} ${what}${zoned(P)?' on every side':''}`:c.map(([k,n])=>`${zoneName(P,k,true)} ${n}`).join(', ')+` row${c.length>1||c[0][1]>1?'s':''} ${what}`);};
-  perZone(r=>r.blocked,'with sightlines blocked by spectators in front');perZone(r=>r.C!=null&&status(r)!=='pass'&&!r.blocked,'below their C-value target');perZone(r=>r.rake!=null&&r.rake>P.maxRake,`steeper than ${P.maxRake}°`);perZone(r=>r.riser!=null&&r.riser>P.maxRiser+0.01,`with risers over ${L(P.maxRiser)}`);
+  perZone(r=>r.C!=null&&status(r)!=='pass','below their C-value target');perZone(r=>r.rake!=null&&r.rake>P.maxRake,`steeper than ${P.maxRake}°`);perZone(r=>r.riser!=null&&r.riser>P.maxRiser+0.01,`with risers over ${L(P.maxRiser)}`);
   if(M.vd>P.vd)msg.push(`back row beyond the ${L(P.vd*1000,'m',0,true)} viewing distance limit`);
   M.rails.forEach(r=>msg.push(`${zl(r)} front row can't see the point of focus over the ${L(P.railH)} guard`));
   M.lowHead.forEach(h=>msg.push(`${L(h.h)} headroom under ${zl(h)}`));

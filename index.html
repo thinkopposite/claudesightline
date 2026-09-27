@@ -614,7 +614,7 @@ function eyeAt(P,seat,T,mode){const e=P.eye;
   if(isBench(seat))return [e.bnFront,mode==='stand'?e.bnStH:e.bnSitH];
   const sit=T-e.chSitBack;return mode==='stand'?[sit-e.chStFwd,e.chStH]:[sit,e.chSitH];}
 function defaults(){const S=SPORTS.ncaafb,f={};
-  return {sport:'ncaafb',L:S.L,W:S.W,lanes:8,fl:330*FT,cf:400*FT,bs:60*FT,north:'L',sec:'T',tierCount:2,
+  return {sport:'ncaafb',L:S.L,W:S.W,lanes:8,fl:330*FT,cf:400*FT,bs:60*FT,north:'L',planOri:'v',sec:'T',tierCount:2,
   zt:[tierDef(22,'all',f),tierDef(18,'pairs',f),tierDef(14,'pairs',f)],
   eye:eyeDefaults(),eyeMode:'sit',slabT:6*25.4,step:12.7,maxRiser:24*25.4,bank:1,maxRake:34,loss:12,vd:S.vd,capTarget:30000,railH:660,minHead:2300,suiteH:4.27};}
 function defaultsPinned(){const d=defaults();pinUpperTiers(d);return d;}
@@ -675,7 +675,7 @@ function keepGaps(P,g){for(let ti=1;ti<3;ti++)for(const k of GEO)Object.assign(P
 function fixP(P){if(!SPORTS[P.sport])P.sport=LEGACY_SPORT[P.sport]||'fifa';const d=defaults();
   P.eye=Object.assign(eyeDefaults(),P.eye||{});if(P.eyeMode!=='stand')P.eyeMode='sit';
   for(const k of['fl','cf','bs','L','W','lanes','railH','minHead','suiteH','maxRiser','step','slabT'])if(!(P[k]>0))P[k]=d[k];
-  if(!GEO.includes(P.north))P.north='L';if(!GEO.includes(P.sec))P.sec='T';
+  P.north='L';if(P.planOri!=='h')P.planOri='v';if(!GEO.includes(P.sec))P.sec='T';
   if(!Array.isArray(P.zt)||P.zt.length<3)P.zt=d.zt;
   P.zt.forEach((t,i)=>{if(!LINKS[t.link])t.link=i?'pairs':'all';if(t.corners!=='open')t.corners='auto';GEO.forEach(k=>{const o=t.z[k]||{};if(o.tread0==null)o.tread0=o.tread;if(o.treadN==null)o.treadN=o.tread;t.z[k]=zp(o);});});
   pinUpperTiers(P);return P;}
@@ -839,7 +839,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.18';
+const VERSION='2026.09.27.19';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -965,7 +965,7 @@ function zoneEditor(ti,g){
 function renderControls(){
   const grp=(r,lab)=>`<optgroup label="${lab}">`+Object.entries(SPORTS).filter(([k,x])=>x.region===r).map(([k,x])=>`<option value="${k}"${P.sport===k?' selected':''}>${x.name} (${x.org})</option>`).join('')+'</optgroup>';
   let h='<h2>Sport</h2><select id="sportSel" class="sel" aria-label="Sport and governing body">'+grp('america','America')+grp('world','World')+'</select>';
-  if(zoned(P))h+=`<div class="sl"><div class="sl-top"><label for="northSel">Field orientation (plan is north up)</label></div><select id="northSel" class="sel">${[['L','North–South, end zones N and S'],['R','North–South, flipped'],['T','East–West, end zones E and W'],['B','East–West, flipped']].map(([k,n])=>`<option value="${k}"${P.north===k?' selected':''}>${n}</option>`).join('')}</select></div>`;
+  if(zoned(P))h+=`<div class="sl"><div class="sl-top"><label for="northSel">Field orientation</label></div><select id="northSel" class="sel">${[['v','Vertical football field, north up'],['h','Landscape football field, north left']].map(([k,n])=>`<option value="${k}"${P.planOri===k?' selected':''}>${n}</option>`).join('')}</select></div>`;
   h+='<h2>Capacity target</h2>'+slider('capTarget','Target seats',5000,120000,500,'seats')+'<button id="fit" style="margin-top:6px">Size rows to hit target</button>';
   h+='<h2>Tiers</h2><div class="seg">'+[1,2,3].map(n=>`<button data-tc="${n}" class="${P.tierCount===n?'on':''}">${n} tier${n>1?'s':''}</button>`).join('')+'</div>';
   h+='<div class="lab">Tread and riser thickness</div><div class="seg">'+[4,5,6].map(n=>`<button data-slab="${n}" class="${Math.abs(slabT()-n*25.4)<0.1?'on':''}">${L(n*25.4)}</button>`).join('')+'</div>';
@@ -1003,7 +1003,7 @@ $('controls').addEventListener('input',e=>{
 // length boxes commit on Enter or leaving the field, so half-typed 12'-6 isn't read early
 $('controls').addEventListener('change',e=>{
   if(e.target.id==='sportSel'){applySport(e.target.value);return;}
-  if(e.target.id==='northSel'){P.north=e.target.value;CUR=null;renderControls();update();return;}
+  if(e.target.id==='northSel'){P.planOri=e.target.value;CUR=null;renderControls();update();return;}
   const el=e.target,p=el.dataset.p;if(!p||!el.classList.contains('len'))return;
   const mt=META[p],k=mt.kind==='m'?1000:1,mm=parseLen(el.value,mt.kind);
   if(!isFinite(mm)){toast(imperial()?'Try a length like 12\'-6 1/2" or 150"':'Try a length like 3.8 m or 3800 mm');el.value=fieldText(get(p)*k,mt.kind,mt.step);return;}
@@ -1096,7 +1096,7 @@ function chainDims(rows,tiers,X,Y,fs,band){
 }
 let PLAN='bowl',PLANROT=0;
 // The plan is always drawn north up: rotate the drawing so the side facing north sits at the top.
-const planRot=()=>zoned(P)?({T:0,R:-90,B:180,L:90})[P.north]||0:0;
+const planRot=()=>zoned(P)&&P.planOri!=='h'?90:0;               // vertical: north up; landscape: north left
 const rotPt=(x,y,t)=>{const r=t*Math.PI/180,c=Math.round(Math.cos(r)),s=Math.round(Math.sin(r));return [x*c-y*s,x*s+y*c];};
 const upright=r=>{let x=r+PLANROT;while(x>=90)x-=180;while(x<-90)x+=180;return x-PLANROT;};   // vertical text reads bottom to top   // text angle that reads upright after rotation
 const FOCAL='#FF0000';
@@ -1140,7 +1140,7 @@ function drawPlan(){
       GEO.forEach(k=>{const s=G.side[k];if(!ZR[k].length)return;const d=(isSide(k)?dS:dE)+fs*2.6;
         labels.push([(s.p[0]+s.q[0])/2+s.n[0]*d,(s.p[1]+s.q[1])/2+s.n[1]*d,zoneName(P,k,true)]);});}
     const sc=sectionAt(),sw=(x1-x0)/45;grow(sc[0]+sc[2]*(Rmax+1.5)+sc[2]*sw*1.4,sc[1]+sc[3]*(Rmax+1.5)+sc[3]*sw*1.4,sw*1.6);
-    labels.forEach(([x,y])=>grow(x,y,fs*1.8));
+    labels.forEach(([x,y])=>grow(x,y,fs*3));                  // room for three-letter labels such as NEZ
   }else{dims=focalDims(P);
     for(const d of dims){const D=dimLabel(d,fs);if(d.r)grow(d.c[0],d.c[1]);else{grow(D.a[0],D.a[1],fs);grow(D.b[0],D.b[1],fs);}
       const R=D.rot*Math.PI/180,hx=Math.abs(Math.cos(R))*D.tw*.65+Math.abs(Math.sin(R))*fs*2+fs*.4,hy=Math.abs(Math.sin(R))*D.tw*.65+Math.abs(Math.cos(R))*fs*2+fs*.4;
@@ -1158,7 +1158,7 @@ function drawPlan(){
     over+=`<text x="${(rx-nx*lf*.9+(vert?lf*2.3:0)).toFixed(2)}" y="${(ry-ny*lf*.9-(vert?0:lf*.9)).toFixed(2)}" font-size="${lf.toFixed(2)}" fill="var(--accent)" font-weight="650" text-anchor="middle" dominant-baseline="middle" paint-order="stroke" stroke="var(--panel)" stroke-width="${(W/150).toFixed(2)}">Section</text>`;
     // north arrow
     const na=lf*1.6,nxp=vx0+vW-na*1.2,nyp=vy0+na*1.3;
-    over+=`<path d="M${nxp.toFixed(2)} ${(nyp-na*.9).toFixed(2)}L${(nxp+na*.4).toFixed(2)} ${(nyp+na*.5).toFixed(2)}L${nxp.toFixed(2)} ${(nyp+na*.2).toFixed(2)}L${(nxp-na*.4).toFixed(2)} ${(nyp+na*.5).toFixed(2)}Z" fill="var(--ink)"/><text x="${nxp.toFixed(2)}" y="${(nyp+na*1.2).toFixed(2)}" font-size="${(lf*.9).toFixed(2)}" font-weight="700" fill="var(--ink)" text-anchor="middle" dominant-baseline="middle">N</text>`;}
+    over+=`<path d="M${nxp.toFixed(2)} ${(nyp-na*.9).toFixed(2)}L${(nxp+na*.4).toFixed(2)} ${(nyp+na*.5).toFixed(2)}L${nxp.toFixed(2)} ${(nyp+na*.2).toFixed(2)}L${(nxp-na*.4).toFixed(2)} ${(nyp+na*.5).toFixed(2)}Z" fill="var(--ink)" transform="rotate(${t===90?0:-90} ${nxp.toFixed(2)} ${nyp.toFixed(2)})"/><text x="${nxp.toFixed(2)}" y="${(nyp+na*1.2).toFixed(2)}" font-size="${(lf*.9).toFixed(2)}" font-weight="700" fill="var(--ink)" text-anchor="middle" dominant-baseline="middle">N</text>`;}
   else body+=drawDims(dims,g,fs);
   return s+(t?`<g transform="rotate(${t})">${body}</g>`:body)+over+'</svg>';
 }
@@ -1259,7 +1259,7 @@ function sectionSheet(key){
   g+=`<text x="${f(pp.m+5*segIn+pp.txt*.6)}" y="${f(yb+bh*.85)}" font-size="${f(pp.small)}">${imperial()?'feet':'metres'}</text>`;
   // parameters for the side in the section
   const zs=P.sec,zn=zoneName(P,zs),Sp=SPORTS[P.sport],tiers=[...new Set(rows.map(r=>r.tier))];
-  const col1=[['Sport',`${Sp.name} (${Sp.org})`],['Section through',zn],['Field orientation',zoned(P)?({L:'North–South',R:'North–South, flipped',T:'East–West',B:'East–West, flipped'})[P.north]:'n/a'],
+  const col1=[['Sport',`${Sp.name} (${Sp.org})`],['Section through',zn],['Field orientation',zoned(P)?(P.planOri==='h'?'Landscape, north left':'Vertical, north up'):'n/a'],
     ['Tread and riser thickness',L(slabT())],['Sightline mode',P.eyeMode==='stand'?'Standing':'Sitting'],['Chairback eye sit / stand',`${L(P.eye.chSitH)} / ${L(P.eye.chStH)}`],['Bench eye sit / stand',`${L(P.eye.bnSitH)} / ${L(P.eye.bnStH)}`],['Risers rounded to',L(P.step)],['Maximum riser / rake',`${L(P.maxRiser)} / ${P.maxRake}°`],['Guard at upper fronts',L(P.railH)]];
   const tcols=tiers.map(ti=>{const z=P.zt[ti].z[zs],tr=rows.filter(r=>r.tier===ti),f0=tr[0],l0=tr[tr.length-1],rk=Math.max(...tr.filter(r=>r.rake!=null).map(r=>r.rake),0),
     cs=tr.filter(r=>r.C!=null),lc=cs.length?Math.min(...cs.map(r=>r.C)):null;
@@ -1310,7 +1310,7 @@ $('exRevit').onclick=()=>{
   const wb=XLSX.utils.book_new(),s=SPORTS[P.sport]||{name:'Custom',org:''},add=(rows,name)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),name);
   const d=new Date(),pad=n=>String(n).padStart(2,'0'),stamp=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   const sum=[['Sightline bowl option',optName()],['Exported',stamp],['Sport',`${s.name} (${s.org})`],['Governing rules',s.rule||''],['Field (m)',s.shape==='track'?`400 m standard track, ${P.lanes} lanes x 1.22`:s.shape==='fan'?`foul lines ${P.fl.toFixed(2)}, centre field ${P.cf.toFixed(2)}, backstop ${P.bs.toFixed(2)}`:`${(+P.L).toFixed(2)} x ${(+P.W).toFixed(2)}${s.shape==='oval'?' (boundary rope)':''}`],
-    ...(zoned(P)?[['North',`${({L:'left end',R:'right end',T:'top sideline',B:'bottom sideline'})[P.north]} of the plan (+X right, +Y up)`]]:[]),
+    ...(zoned(P)?[['North','-X in the Revit model: the north end zone sits at -X, East sideline at +Y']]:[]),
     ['Estimated seats',M.cap],...M.tierSeats.map((x,i)=>[`Tier ${i+1} seats`,x]),
     ['Lowest C-value (mm)',M.worst?Math.round(M.worst.C):''],['Steepest rake (deg)',M.steep?+M.steep.rake.toFixed(2):''],['Top row above pitch (m)',+M.height.toFixed(2)],['Farthest viewing distance (m)',+M.vd.toFixed(1)],
     ['Tread and riser thickness (mm)',Math.round(slabT()*10)/10],['Sightline mode',P.eyeMode==='stand'?'Standing':'Sitting'],['Chairback sitting eye (mm)',P.eye.chSitH],['Chairback standing eye (mm)',P.eye.chStH],['Chairback sitting eye forward of back riser (mm)',P.eye.chSitBack],['Chairback standing eye forward of sitting (mm)',P.eye.chStFwd],['Bench sitting eye (mm)',P.eye.bnSitH],['Bench standing eye (mm)',P.eye.bnStH],['Bench eye back from front edge (mm)',P.eye.bnFront],['Guard at upper tier fronts (mm)',P.railH],[],

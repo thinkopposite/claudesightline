@@ -137,7 +137,7 @@ a.btnlink:hover{border-color:var(--ink)}
     <div class="stats" id="stats"></div>
     <div class="tablewrap" id="zones"></div>
     <p class="verdict" id="verdict"></p>
-    <div class="planhead" style="margin-top:6px"><h3 id="secTitle">Section</h3><div class="seg" id="secTabs" role="group" aria-label="Section through"></div></div>
+    <div class="planhead" style="margin-top:6px"><h3 id="secTitle">Section</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="secTabs" role="group" aria-label="Section through"></div><div class="seg" role="group" aria-label="Print section"><button id="prArchE">Print ARCH E</button><button id="prTab">Print Tabloid</button></div></div></div>
     <div class="panel" id="section"></div>
     <div class="legend">
       <span><i style="background:var(--sl-ok);height:1px"></i>Sightline, C-value at or above minimum</span>
@@ -823,7 +823,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.12';
+const VERSION='2026.09.27.13';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1017,10 +1017,10 @@ $('controls').addEventListener('click',e=>{
 
 // ---------- drawings ----------
 const COL={pass:'var(--pass)',reduced:'var(--warn)',fail:'var(--fail)',front:'var(--muted)'};
-function drawSection(rows){
+function drawSection(rows,o={}){
   if(!rows.length)return '<p class="empty" style="padding:16px">No seats on this side.</p>';
   const maxX=Math.max(...rows.map(r=>r.x+r.T)),maxZ=Math.max(...rows.map(r=>r.z+P.eyeH));
-  const X1=maxX+2500,X0=Math.min(-6000,rows[0].x-10000,-0.09*(X1+6000)),W=X1-X0,fs=W/80,dot=W/450;
+  const X1=maxX+2500,X0=Math.min(-6000,rows[0].x-10000,-0.09*(X1+6000)),W=X1-X0,fs=o.fs||W/80,dot=o.fs?fs*.16:W/450;
   const band=36*25.4,Z0=-(band+fs*4.4),Z1=maxZ+3000,H=Z1-Z0;         // 36 in pitch and buffer bands, then room for the chain dimension
   const X=x=>(x-X0).toFixed(0),Y=z=>(Z1-z).toFixed(0);
   let s=`<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" role="img" aria-label="Bowl section with sightlines">`;
@@ -1199,6 +1199,76 @@ $('saveOpt').onclick=()=>{
   OPTS.push({name,P:JSON.parse(JSON.stringify(P)),m:{cap:M.cap,tiers:P.tierCount,c:M.worst?Math.round(M.worst.C):0,rake:M.steep?M.steep.rake.toFixed(1):0,h:M.height.toFixed(1),vd:M.vd.toFixed(0)}});
   CUR=OPTS.length-1;persist();renderOpts();toast(name+' saved');
 };
+
+// ---------- section print sheet ----------
+// Landscape sheet in inches. The drawing takes the largest standard scale whose width (and height) fits the drawing area;
+// text is sized for the paper. Bottom band: graphic scale, parameters, title. Printed through the browser at the true page
+// size, so "Save as PDF" gives a full-size PDF.
+const PAPERS={archE:{name:'ARCH E',w:48,h:36,m:0.75,band:3.4,txt:0.15,small:0.13,title:9},
+              tabloid:{name:'Tabloid',w:17,h:11,m:0.4,band:1.75,txt:0.085,small:0.066,title:4.3}};
+const IMP_SCALES=[[1,'1"'],[3/4,'3/4"'],[1/2,'1/2"'],[3/8,'3/8"'],[1/4,'1/4"'],[3/16,'3/16"'],[1/8,'1/8"'],[3/32,'3/32"'],[1/16,'1/16"'],[1/32,'1/32"'],[1/64,'1/64"']];
+const MET_SCALES=[20,25,50,75,100,125,200,250,500,1000];
+function sheetScales(){return imperial()?IMP_SCALES.map(([s,t])=>({ratio:12/s,label:`${t} = 1'-0"`})):MET_SCALES.map(r=>({ratio:r,label:`1:${r}`}));}
+function sectionSheet(key){
+  const pp=PAPERS[key],rows=ZR[P.sec];if(!rows||!rows.length)return null;
+  const aw=pp.w-2*pp.m,ah=pp.h-2*pp.m-pp.band-0.25;
+  let pick=null;
+  for(const sc of sheetScales()){                              // largest scale first
+    const fsmm=pp.txt*25.4*sc.ratio,svg=drawSection(rows,{fs:fsmm}),vb=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+    const wIn=+vb[1]/sc.ratio/25.4,hIn=+vb[2]/sc.ratio/25.4;
+    if(wIn<=aw&&hIn<=ah){pick={sc,svg,wIn,hIn};break;}}
+  if(!pick)return null;
+  const {sc,svg,wIn,hIn}=pick,x0=pp.m+(aw-wIn)/2,y0=pp.m+(ah-hIn)/2,f=v=>(+v).toFixed(4);
+  const px=sc.ratio*25.4/96,svgW=svg.replace(/stroke-width="([\d.]+)" vector-effect="non-scaling-stroke"/g,(m,w)=>`stroke-width="${(Math.max(+w,0.6)*px).toFixed(1)}"`).replace(/ vector-effect="non-scaling-stroke"/g,` stroke-width="${(0.5*px).toFixed(1)}"`);   // grid lines: fine
+  const draw=svgW.replace('<svg ',`<svg x="${f(x0)}" y="${f(y0)}" width="${f(wIn)}" height="${f(hIn)}" preserveAspectRatio="xMinYMin meet" `);
+  // graphic scale
+  const by=pp.h-pp.m-pp.band+pp.txt*2.2,unitMM=imperial()?304.8:1000,perUnit=unitMM/sc.ratio/25.4;    // paper inches per foot / metre
+  const maxLen=pp.w*(key==='archE'?0.2:0.26),divs=[1,2,4,5,10,20,25,50,100,200];let u=divs[0];
+  for(const d of divs)if(d*5*perUnit<=maxLen)u=d;
+  const segIn=u*perUnit,bh=pp.txt*.9;let g=`<text x="${f(pp.m)}" y="${f(by)}" font-size="${f(pp.txt*1.05)}" font-weight="700">Graphic scale: ${sc.label}</text>`;
+  const yb=by+pp.txt*0.9;
+  for(let i=0;i<5;i++)g+=`<rect x="${f(pp.m+i*segIn)}" y="${f(yb)}" width="${f(segIn)}" height="${f(bh)}" fill="${i%2?'#fff':'#000'}" stroke="#000" stroke-width="${f(pp.txt*.08)}"/>`;
+  for(let i=0;i<=5;i++)g+=`<text x="${f(pp.m+i*segIn)}" y="${f(yb+bh+pp.txt*1.15)}" font-size="${f(pp.small)}" text-anchor="middle">${i*u}</text>`;
+  g+=`<text x="${f(pp.m+5*segIn+pp.txt*.6)}" y="${f(yb+bh*.85)}" font-size="${f(pp.small)}">${imperial()?'feet':'metres'}</text>`;
+  // parameters for the side in the section
+  const zs=P.sec,zn=zoneName(P,zs),Sp=SPORTS[P.sport],tiers=[...new Set(rows.map(r=>r.tier))];
+  const col1=[['Sport',`${Sp.name} (${Sp.org})`],['Section through',zn],['Field orientation',zoned(P)?({L:'North–South',R:'North–South, flipped',T:'East–West',B:'East–West, flipped'})[P.north]:'n/a'],
+    ['Tread and riser thickness',L(slabT())],['Eye height / setback',`${L(P.eyeH)} / ${L(P.setback)}`],['Risers rounded to',L(P.step)],['Maximum riser / rake',`${L(P.maxRiser)} / ${P.maxRake}°`],['Guard at upper fronts',L(P.railH)]];
+  const tcols=tiers.map(ti=>{const z=P.zt[ti].z[zs],tr=rows.filter(r=>r.tier===ti),f0=tr[0],l0=tr[tr.length-1],rk=Math.max(...tr.filter(r=>r.rake!=null).map(r=>r.rake),0),
+    cs=tr.filter(r=>r.C!=null),lc=cs.length?Math.min(...cs.map(r=>r.C)):null;
+    return [[`Tier ${ti+1}`,`${tr.length} rows, ${(SEATS[z.seat]||{name:'Custom'}).name}, ${z.riser==='constant'?'constant':'parabolic'} riser`],
+      ['Lowest riser from focus',L(f0.x)],[ti?'Rise from concourse':'First row above pitch',ti?L((z.rise+z.suites*P.suiteH)*1000):L(f0.z)],
+      ['Rows typ / bottom / top',`${L(z.tread)} / ${L(z.tread0)} / ${L(z.treadN)}`],['Seat width',L(z.seatW)],['Target C / lowest C',`${L(z.target)} / ${lc==null?'n/a':L(lc)}`],
+      ['Steepest rake',rk.toFixed(1)+'°'],['Seats (this side)',fmt(M.zoneSeats[ti]?.[zs]||0)]];});
+  // columns share the width between the scale bar and the title block
+  const lh=pp.small*1.45,px0=pp.m+Math.max(5*segIn+pp.txt*4,pp.w*.16),ncol=1+tcols.length,colW=(pp.w-pp.m-pp.title-px0)/ncol;
+  const table=(list,x)=>list.map(([k,v],i)=>`<text x="${f(x)}" y="${f(by+i*lh)}" font-size="${f(pp.small)}"><tspan font-weight="700">${k}: </tspan>${v}</text>`).join('');
+  let pmt=table(col1,px0);tcols.forEach((c,i)=>pmt+=table(c,px0+colW*(i+1)));
+  // title block
+  const tx=pp.w-pp.m,d=new Date(),ds=d.toISOString().slice(0,10);
+  const tb=`<text x="${f(tx)}" y="${f(by)}" font-size="${f(pp.txt*1.9)}" font-weight="800" text-anchor="end">Sightline Schematic</text>
+    <text x="${f(tx)}" y="${f(by+pp.txt*2.1)}" font-size="${f(pp.txt*1.25)}" font-weight="700" text-anchor="end">Bowl section: ${zn}</text>
+    <text x="${f(tx)}" y="${f(by+pp.txt*3.7)}" font-size="${f(pp.small)}" text-anchor="end">${optName()} | ${fmt(M.cap)} seats total | Scale ${sc.label} | ${pp.name} ${pp.h}" × ${pp.w}" | ${ds}</text>
+    <text x="${f(tx)}" y="${f(by+pp.txt*3.7+lh)}" font-size="${f(pp.small)}" text-anchor="end">Point of focus per ${Sp.rule}. Verify against current codes before issue.</text>`;
+  const line=`<line x1="${f(pp.m)}" y1="${f(pp.h-pp.m-pp.band)}" x2="${f(pp.w-pp.m)}" y2="${f(pp.h-pp.m-pp.band)}" stroke="#000" stroke-width="${f(pp.txt*.1)}"/>`;
+  const sheet=`<svg xmlns="http://www.w3.org/2000/svg" width="${pp.w}in" height="${pp.h}in" viewBox="0 0 ${pp.w} ${pp.h}" font-family="Archivo, 'Arial Narrow', Arial, sans-serif" fill="#000"><rect width="${pp.w}" height="${pp.h}" fill="#fff"/>${draw}${line}${g}${pmt}${tb}</svg>`;
+  const tmp=document.createElement('div');tmp.innerHTML=sheet;titleize(tmp);                  // same Title Case as the app
+  return {svg:tmp.innerHTML,scale:sc.label,paper:pp};
+}
+function printSheet(key){
+  const sh=sectionSheet(key);if(!sh){toast('This section does not fit the sheet at any standard scale.');return;}
+  const root=(document.querySelector('style').textContent.match(/:root\{[^}]*\}/)||[''])[0];
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>Sightline Schematic - ${zoneName(P,P.sec)} - ${sh.paper.name}</title>
+    <style>${root}@page{size:${sh.paper.w}in ${sh.paper.h}in;margin:0}html,body{margin:0;padding:0}svg{display:block}</style></head><body>${sh.svg}</body></html>`;
+  let fr=document.getElementById('printFrame');if(fr)fr.remove();
+  fr=document.createElement('iframe');fr.id='printFrame';fr.setAttribute('aria-hidden','true');
+  fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';document.body.appendChild(fr);
+  const doc=fr.contentDocument;doc.open();doc.write(html);doc.close();
+  setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){toast('Printing is blocked in this browser.');}},250);
+  toast(`${sh.paper.name} at ${sh.scale}. Choose "Save as PDF" and keep scale at 100%.`);
+}
+$('prArchE').onclick=()=>printSheet('archE');
+$('prTab').onclick=()=>printSheet('tabloid');
 
 // ---------- exports ----------
 const optName=()=>CUR!=null&&OPTS[CUR]?OPTS[CUR].name:'Current bowl';

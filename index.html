@@ -661,6 +661,9 @@ function solveZone(P,k){
 // "All C-values meet minimum": re-size every stand's risers for one spectator case, then report what could not be met
 // (a constant riser stops at the maximum riser).
 const BASIS={sit:'sitting',stand:'standing',both:'sitting and standing'};
+// the action the whole bowl currently follows (every stand with seats on the same riser type and spectator case), else null
+function meetNow(){const zs=[];P.zt.slice(0,P.tierCount).forEach(t=>zoneKeys(P).forEach(k=>{if(t.z[k].on)zs.push(t.z[k]);}));
+  if(!zs.length)return null;const a=`${zs[0].riser}:${zs[0].basis||'sit'}`;return zs.every(z=>`${z.riser}:${z.basis||'sit'}`===a)?a:null;}
 function meetAllC(mode,rt){
   P.step=12.7;                                                           // 1/2 in increments
   P.zt.forEach(t=>GEO.forEach(k=>Object.assign(t.z[k],{basis:mode,riser:rt})));
@@ -854,7 +857,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.21';
+const VERSION='2026.09.27.22';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -983,8 +986,8 @@ function renderControls(){
   if(zoned(P))h+=`<div class="sl"><div class="sl-top"><label for="northSel">Field orientation</label></div><select id="northSel" class="sel">${[['v','Vertical football field, north up'],['h','Landscape football field, north left']].map(([k,n])=>`<option value="${k}"${P.planOri===k?' selected':''}>${n}</option>`).join('')}</select></div>`;
   h+='<h2>Capacity target</h2>'+slider('capTarget','Target seats',5000,120000,500,'seats')+'<button id="fit" style="margin-top:6px">Size rows to hit target</button>'
     +'<h2>All C-values meet minimum</h2>'+[['parabolic','Parabolic risers'],['constant','Constant risers']].map(([k,n])=>`<div class="lab">${n}</div><div class="seg">`
-      +[['sit','Sitting'],['stand','Standing'],['both','Sitting and standing']].map(([m,t])=>`<button data-meet="${k}:${m}">${t}</button>`).join('')+'</div>').join('')
-    +'<p class="hint">Re-sizes the risers on every tier and side in ½" steps so each row meets its minimum C-value for the chosen spectators. Constant risers stop at the maximum riser.</p>';
+      +[['sit','Sitting'],['both','Sitting and standing']].map(([m,t])=>`<button data-meet="${k}:${m}" class="${meetNow()===k+':'+m?'on':''}" aria-pressed="${meetNow()===k+':'+m}">${t}</button>`).join('')+'</div>').join('')
+    +'<p class="hint">Re-sizes the risers on every tier and side in ½" steps so each row meets its minimum C-value. Sitting and standing also covers standing on its own. Constant risers stop at the maximum riser.</p>';
   h+='<h2>Tiers</h2><div class="seg">'+[1,2,3].map(n=>`<button data-tc="${n}" class="${P.tierCount===n?'on':''}">${n} tier${n>1?'s':''}</button>`).join('')+'</div>';
   h+='<div class="lab">Tread and riser thickness</div><div class="seg">'+[4,5,6].map(n=>`<button data-slab="${n}" class="${Math.abs(slabT()-n*25.4)<0.1?'on':''}">${L(n*25.4)}</button>`).join('')+'</div>';
   EDIT.tier=Math.min(EDIT.tier,P.tierCount-1);const ti=EDIT.tier,T=P.zt[ti];

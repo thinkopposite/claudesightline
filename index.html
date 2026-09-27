@@ -569,7 +569,7 @@ function drawDims(list,g,fs){
 }
 /*ENDSPORTS*/
 /*CORE*/
-const SEATS={standard:{name:'Chairback',tread:800,seatW:500},premium:{name:'Premium',tread:900,seatW:550},club:{name:'Club',tread:1050,seatW:600},bench:{name:'Bench',tread:760,seatW:455}};
+const SEATS={standard:{name:'Chairback',tread:34*25.4,seatW:20*25.4},premium:{name:'Premium',tread:36*25.4,seatW:22*25.4},club:{name:'Club',tread:40*25.4,seatW:24*25.4},bench:{name:'Bench',tread:30*25.4,seatW:20*25.4}};
 // ---------- zones: four sides per tier on rectangular fields ----------
 // Geometric keys, clockwise on screen: T top sideline, R right end, B bottom sideline, L left end.
 const GEO=['T','R','B','L'],isSide=k=>k==='T'||k==='B',CW={N:'North',E:'East',S:'South',W:'West'};
@@ -582,12 +582,12 @@ const LINKS={all:'All four match',pairs:'Sidelines & ends',none:'Each side'};
 function groups(P,ti){if(!zoned(P))return [['T']];const l=P.zt[ti].link;return l==='all'?[['T','R','B','L']]:l==='pairs'?[['T','B'],['R','L']]:GEO.map(k=>[k]);}
 function groupName(P,ti,g){if(!zoned(P))return 'All around';if(g.length===4)return 'All four sides';
   if(g.length===2)return (isSide(g[0])?'Sidelines ':'End zones ')+'('+g.map(k=>zoneName(P,k,true)).join(', ')+')';return zoneName(P,g[0]);}
-function zp(o){return Object.assign({on:true,rows:20,seat:'standard',tread:800,seatW:500,target:90,D:8,Z:1,gap:2.4,rise:3.05,suites:0},o);}
+function zp(o){return Object.assign({on:true,rows:20,seat:'standard',riser:'parabolic',tread:34*25.4,seatW:20*25.4,target:3.5*25.4,D:20*0.3048,Z:8*0.3048,gap:2.4,rise:3.048,suites:0},o);}
 function tierDef(rows,link,o={}){return {link,corners:'auto',z:Object.fromEntries(GEO.map(k=>[k,zp(Object.assign({rows},o))]))};}
-function defaults(){const S=SPORTS.ncaafb,f={D:S.D,Z:S.Z};
+function defaults(){const S=SPORTS.ncaafb,f={};
   return {sport:'ncaafb',L:S.L,W:S.W,lanes:8,fl:330*FT,cf:400*FT,bs:60*FT,north:'T',sec:'T',tierCount:2,
-  zt:[tierDef(22,'all',f),tierDef(18,'pairs',f),tierDef(14,'pairs',Object.assign({target:60},f))],
-  eyeH:1200,setback:400,step:10,bank:1,maxRake:34,loss:12,vd:S.vd,capTarget:30000,railH:660,minHead:2300,suiteH:4.27};}
+  zt:[tierDef(22,'all',f),tierDef(18,'pairs',f),tierDef(14,'pairs',Object.assign({target:2.5*25.4},f))],
+  eyeH:1200,setback:400,step:12.7,maxRiser:24*25.4,bank:1,maxRake:34,loss:12,vd:S.vd,capTarget:30000,railH:660,minHead:2300,suiteH:4.27};}
 // Saved bowls from before zones: one profile for the whole bowl becomes the same profile on every side.
 function migrate(o){if(!o||o.zt)return o;const d=defaults();
   d.zt.forEach((t,i)=>{const lt=(o.tiers||[])[i]||{};GEO.forEach(k=>Object.assign(t.z[k],{rows:lt.rows??t.z[k].rows,gap:lt.gap??t.z[k].gap,rise:lt.rise??t.z[k].rise,
@@ -607,6 +607,11 @@ function solveZone(P,k){
         else{prev=mk(0,prev.x+prev.T+z.gap*1000,prev.z+(z.rise+Math.max(0,z.suites)*P.suiteH)*1000,null,null);
           prev.railC=prev.ez*prev.x/prev.ex-(prev.z+P.railH);}           // front row looks over the guard at the landing edge
         rows.push(prev);j++;continue;}
+      if(z.riser==='constant'){const base=prev,cap=Math.max(step,Math.floor(P.maxRiser/step+1e-9)*step);
+        const build=r=>{const g=[];let p=base;for(let q=j;q<n;q++){const row=mk(q,p.x+p.T,p.z+r,p,r);g.push(row);p=row;}return g;};
+        let r=Math.max(step,Math.ceil(((base.ez+tgt)*(base.ex+T)/base.ex-base.ez-1e-9)/step)*step),g;
+        for(;;r+=step){if(r>cap){g=build(cap);break;}g=build(r);if(g.every(x=>x.C>=tgt-0.05))break;}
+        rows.push(...g);prev=g[g.length-1];j=n;continue;}
       const m=Math.min(bank,n-j),req=(prev.ez+tgt)*(prev.ex+T)/prev.ex-prev.ez;
       let r=Math.max(step,Math.ceil((req-1e-9)/step)*step),g;
       for(let it=0;it<400;it++){g=[];let p=prev,ok=true;
@@ -619,7 +624,7 @@ function solveZone(P,k){
 }
 const solveAll=P=>Object.fromEntries(zoneKeys(P).map(k=>[k,solveZone(P,k)]));
 function fixP(P){if(!SPORTS[P.sport])P.sport=LEGACY_SPORT[P.sport]||'fifa';const d=defaults();
-  for(const k of['fl','cf','bs','L','W','lanes','railH','minHead','suiteH'])if(!(P[k]>0))P[k]=d[k];
+  for(const k of['fl','cf','bs','L','W','lanes','railH','minHead','suiteH','maxRiser','step'])if(!(P[k]>0))P[k]=d[k];
   if(!GEO.includes(P.north))P.north='L';if(!GEO.includes(P.sec))P.sec='T';
   if(!Array.isArray(P.zt)||P.zt.length<3)P.zt=d.zt;
   P.zt.forEach((t,i)=>{if(!LINKS[t.link])t.link=i?'pairs':'all';if(t.corners!=='open')t.corners='auto';GEO.forEach(k=>t.z[k]=zp(t.z[k]));});
@@ -777,13 +782,13 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.3';
+const VERSION='2026.09.27.5';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
 // When the defaults change (DREV goes up), each browser starts once from the new default bowl; saved options are kept.
-const DREV=2;let NEWDEF=false;
-try{if((+localStorage.getItem('sightline-defaults-rev')||0)<DREV){NEWDEF=!!P;P=null;localStorage.setItem('sightline-defaults-rev',String(DREV));}}catch(e){}
+const DREV=3;let NEWDEF=false;
+try{if((+localStorage.getItem('sightline-defaults-rev')||0)<DREV){NEWDEF=!!P;P=null;localStorage.setItem('sightline-defaults-rev',String(DREV));localStorage.setItem('sightline-units',JSON.stringify({sys:'imperial',metric:'mm',imperial:'ftin-frac'}));}}catch(e){}
 if(!P)P=defaults();
 const $=id=>document.getElementById(id);
 function persist(){try{localStorage.setItem(KEY,JSON.stringify({P,OPTS}))}catch(e){}}
@@ -792,7 +797,7 @@ const fmt=n=>Math.round(n).toLocaleString();
 
 // ---------- units (display only; the engine and exports stay metric) ----------
 const UKEY='sightline-units';
-let U={sys:'metric',metric:'mm',imperial:'ftin-frac'};
+let U={sys:'imperial',metric:'mm',imperial:'ftin-frac'};
 try{const u=JSON.parse(localStorage.getItem(UKEY));if(u)Object.assign(U,u);}catch(e){}
 const UFMT={metric:[['m-dec','1.0000 m'],['cm','100.00 cm'],['mm','1,000 mm']],
   imperial:[['ftin-frac','100\'-0 ½"'],['in-frac','1,200 ½"'],['in-dec','1,200.5000"']]};
@@ -890,8 +895,10 @@ function zoneEditor(ti,g){
   h+=`<div class="seg" style="margin:10px 0 2px"><button data-on="${pre}" class="${z.on?'on':''}" aria-pressed="${z.on}">${z.on?'Seats on':'Open (no seats)'}</button></div>`;
   if(!z.on)return h+`<p class="hint">No seats here${ti<2?'; tiers above on this side are open too':''}.</p>`;
   h+='<div class="seg" style="margin:8px 0 0">'+Object.entries(SEATS).map(([k,s])=>`<button data-seat="${k}" data-g="${pre}" class="${z.seat===k?'on':''}">${s.name}</button>`).join('')+'</div>';
-  h+=slider(pre+'.rows','Rows',3,80,1,'rows')+slider(pre+'.tread','Row depth (tread)',650,1300,5,'mm')+slider(pre+'.seatW','Seat width',400,700,5,'mm')+slider(pre+'.target','Target C-value',40,150,5,'mm');
-  if(ti===0)h+=slider(pre+'.D','First row from point of focus',2,30,0.05,'m')+slider(pre+'.Z','First row above pitch',0.3,6,0.05,'m');
+  h+='<div class="lab">Riser</div><div class="seg">'+[['parabolic','Parabolic riser'],['constant','Constant riser']].map(([k,n])=>`<button data-riser="${k}" data-g="${pre}" class="${(z.riser||'parabolic')===k?'on':''}">${n}</button>`).join('')+'</div>'
+    +`<p class="hint">${z.riser==='constant'?`One riser for every row: the smallest ${L(P.step)} step that meets the C-value, up to the ${L(P.maxRiser)} maximum.`:`Each riser sized to meet the C-value, in ${L(P.step)} steps.`}</p>`;
+  h+=slider(pre+'.rows','Rows',3,80,1,'rows')+slider(pre+'.tread','Row depth (tread)',24*25.4,52*25.4,25.4,'mm')+slider(pre+'.seatW','Seat width',16*25.4,30*25.4,25.4,'mm')+slider(pre+'.target','Target C-value',2.5*25.4,6*25.4,0.25*25.4,'mm');
+  if(ti===0)h+=slider(pre+'.D','First row from point of focus',2*0.3048,100*0.3048,0.0254,'m')+slider(pre+'.Z','First row above pitch',1*0.3048,20*0.3048,0.0254,'m');
   else h+=slider(pre+'.gap','Setback from tier below (negative overhangs)',-20,20,0.05,'m')+slider(pre+'.rise',`Rise from ${ti===1?'main':'upper'} concourse to lower landing`,0,15,0.01,'m')
     +slider(pre+'.suites','Suite / club levels below this tier',0,4,1,'levels');
   return h;}
@@ -912,7 +919,7 @@ function renderControls(){
   h+=`<p class="zhead">${groupName(P,ti,G[EDIT.g])}</p>`+zoneEditor(ti,G[EDIT.g])+'</div>';
   h+='<details><summary>Advanced</summary>'+fieldSliders()
     +slider('eyeH','Eye height above tread',1000,1500,10,'mm')+slider('setback','Eye setback from riser',200,700,10,'mm')
-    +slider('step','Round risers up to',1,50,1,'mm')+slider('bank','Rows per riser bank',1,8,1,'rows')
+    +slider('step','Round risers up to',25.4/16,2*25.4,25.4/16,'mm')+slider('maxRiser','Maximum riser',12*25.4,30*25.4,12.7,'mm')+slider('bank','Rows per riser bank',1,8,1,'rows')
     +slider('maxRake','Maximum rake',25,40,0.5,'°')+slider('vd','Viewing distance limit',100,260,5,'m')
     +slider('loss','Seats lost to aisles and vomitories',0,30,1,'%')
     +slider('railH','Guard at upper tier fronts',500,1200,5,'mm')+slider('minHead','Minimum headroom under tiers',2000,3500,10,'mm')+slider('suiteH','Suite / club level height',3,6,0.01,'m')
@@ -935,13 +942,13 @@ $('controls').addEventListener('change',e=>{
   const el=e.target,p=el.dataset.p;if(!p||!el.classList.contains('len'))return;
   const mt=META[p],k=mt.kind==='m'?1000:1,mm=parseLen(el.value,mt.kind);
   if(!isFinite(mm)){toast(imperial()?'Try a length like 12\'-6 1/2" or 150"':'Try a length like 3.8 m or 3800 mm');el.value=fieldText(get(p)*k,mt.kind,mt.step);return;}
-  let v=mm/k;const c=Math.min(mt.max,Math.max(mt.min,v));
-  if(c!==v)toast(`Kept within ${L(mt.min*k,mt.kind,stepDec(mt.step))} to ${L(mt.max*k,mt.kind,stepDec(mt.step))}`);
+  let v=mm/k;let c=Math.min(mt.max,Math.max(mt.min,v));c=Math.min(mt.max,mt.min+Math.round((c-mt.min)/mt.step)*mt.step);c=Math.round(c*1e6)/1e6;
+  if(Math.abs(c-v)>mt.step/2)toast(`Kept within ${L(mt.min*k,mt.kind,stepDec(mt.step))} to ${L(mt.max*k,mt.kind,stepDec(mt.step))}`);
   commit(p,c,null);
 });
 $('controls').addEventListener('focusin',e=>{if(e.target.classList.contains('len'))e.target.select();});
 $('controls').addEventListener('keydown',e=>{if(e.key==='Escape'&&e.target.classList.contains('len')){const mt=META[e.target.dataset.p];e.target.value=fieldText(get(e.target.dataset.p)*(mt.kind==='m'?1000:1),mt.kind,mt.step);e.target.blur();}});
-function markSeat(pre){const t=get(pre+'.tread'),w=get(pre+'.seatW'),s=Object.keys(SEATS).find(k=>SEATS[k].tread===t&&SEATS[k].seatW===w)||'custom';set(pre+'.seat',s);
+function markSeat(pre){const t=get(pre+'.tread'),w=get(pre+'.seatW'),s=Object.keys(SEATS).find(k=>Math.abs(SEATS[k].tread-t)<0.01&&Math.abs(SEATS[k].seatW-w)<0.01)||'custom';set(pre+'.seat',s);
   document.querySelectorAll(`[data-seat][data-g="${pre}"]`).forEach(b=>b.classList.toggle('on',b.dataset.seat===s));}
 function relink(ti,link){const t=P.zt[ti];t.link=link;
   const copy=(from,to)=>to.forEach(k=>{if(k!==from)t.z[k]=JSON.parse(JSON.stringify(t.z[from]));});
@@ -949,6 +956,7 @@ function relink(ti,link){const t=P.zt[ti];t.link=link;
 $('controls').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.seat){const s=SEATS[b.dataset.seat],pre=b.dataset.g;set(pre+'.seat',b.dataset.seat);set(pre+'.tread',s.tread);set(pre+'.seatW',s.seatW);}
+  else if(b.dataset.riser){set(b.dataset.g+'.riser',b.dataset.riser);}
   else if(b.dataset.on){set(b.dataset.on+'.on',!get(b.dataset.on+'.on'));}
   else if(b.dataset.tc){P.tierCount=+b.dataset.tc;}
   else if(b.dataset.et){EDIT={tier:+b.dataset.et,g:0};renderControls();return;}
@@ -966,8 +974,9 @@ const COL={pass:'var(--pass)',reduced:'var(--warn)',fail:'var(--fail)',front:'va
 function drawSection(rows){
   if(!rows.length)return '<p class="empty" style="padding:16px">No seats on this side.</p>';
   const maxX=Math.max(...rows.map(r=>r.x+r.T)),maxZ=Math.max(...rows.map(r=>r.z+P.eyeH));
-  const X0=Math.min(-6000,rows[0].x-10000),X1=maxX+2500,Z0=-2200,Z1=maxZ+3000,W=X1-X0,H=Z1-Z0;
-  const X=x=>(x-X0).toFixed(0),Y=z=>(Z1-z).toFixed(0),fs=W/80,dot=W/450;
+  const X1=maxX+2500,X0=Math.min(-6000,rows[0].x-10000,-0.09*(X1+6000)),W=X1-X0,fs=W/80,dot=W/450;
+  const Z0=-fs*5,Z1=maxZ+3000,H=Z1-Z0;                             // room below the pitch for the horizontal chain dimension
+  const X=x=>(x-X0).toFixed(0),Y=z=>(Z1-z).toFixed(0);
   let s=`<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" role="img" aria-label="Bowl section with sightlines">`;
   const GS=imperial()?20*304.8:5000,gl=g=>imperial()?`${Math.round(g/304.8)}'`:fmode()==='m-dec'?`${Math.round(g/1000)} m`:fmode()==='cm'?`${EN(g/10)} cm`:`${EN(g)} mm`;
   for(let g=Math.ceil(X0/GS)*GS;g<=X1;g+=GS)s+=`<line x1="${X(g)}" y1="0" x2="${X(g)}" y2="${H}" stroke="var(--grid)" vector-effect="non-scaling-stroke"/><text x="${X(g)}" y="${H-fs*.35}" font-size="${fs*.8}" fill="var(--muted)" text-anchor="middle">${gl(g)}</text>`;
@@ -982,13 +991,37 @@ function drawSection(rows){
     const cx0=lb.x+lb.T,cx1=Math.max(cx0+4000,f.x);                                   // concourse floor behind the tier below
     s+=`<line x1="${X(cx0)}" y1="${Y(cz)}" x2="${X(cx1)}" y2="${Y(cz)}" stroke="var(--ink)" stroke-width="2" vector-effect="non-scaling-stroke"/><text x="${X(cx0+fs*.3)}" y="${+Y(cz)-fs*.35}" font-size="${fs*.62}" fill="var(--muted)">${ti===1?'Main':'Upper'} concourse</text>`;
     s+=`<line x1="${X(f.x)}" y1="${Y(f.z)}" x2="${X(f.x)}" y2="${Y(f.z+P.railH)}" stroke="${f.railC<0?'var(--fail)':'var(--ink)'}" stroke-width="2.4" vector-effect="non-scaling-stroke"><title>Guard ${L(P.railH)}</title></line>`;});
+  rows.forEach(r=>{const tf=Math.min(fs*.42,r.T*.5);                              // tread numbers, 1 at the bottom of each tier
+    s+=`<text x="${X(r.x+r.T/2)}" y="${(+Y(r.z)+tf*1.05).toFixed(0)}" font-size="${tf.toFixed(0)}" fill="var(--ink)" opacity=".75" text-anchor="middle" font-weight="600">${r.row}</text>`;});
   rows.forEach(r=>s+=`<line x1="${X(r.ex)}" y1="${Y(r.ez)}" x2="${X(0)}" y2="${Y(0)}" stroke="${COL[status(r)]}" opacity=".3" vector-effect="non-scaling-stroke"/>`);
   rows.forEach(r=>s+=`<circle cx="${X(r.ex)}" cy="${Y(r.ez)}" r="${dot}" fill="${COL[status(r)]}"><title>Tier ${r.tier+1} row ${r.row}${r.C!=null?', C '+L(r.C):r.railC!=null?', clears guard by '+L(r.railC):''}</title></circle>`);
   const cs=rows.filter(r=>r.C!=null),w=cs.reduce((a,r)=>!a||r.C<a.C?r:a,null);
   if(w){const i=rows.indexOf(w),p=rows[i-1],zl=p.ez+w.C;
     s+=`<line x1="${X(w.ex)}" y1="${Y(w.ez)}" x2="${X(0)}" y2="${Y(0)}" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/><line x1="${X(p.ex)}" y1="${Y(p.ez)}" x2="${X(p.ex)}" y2="${Y(zl)}" stroke="var(--accent)" stroke-width="3" vector-effect="non-scaling-stroke"/><text x="${+X(p.ex)-fs*.5}" y="${+Y(zl)-fs*.5}" font-size="${fs*.95}" font-weight="650" fill="var(--accent)" text-anchor="end">Lowest C ${L(w.C)}</text>`;}
+  s+=chainDims(rows,tiers,X,Y,fs);
   s+=`<line x1="${X(0)}" y1="${+Y(0)+band}" x2="${X(0)}" y2="${+Y(0)-fs*1.6}" stroke="${FOCAL}" stroke-width="2.6" vector-effect="non-scaling-stroke"/>`;
   s+=`<circle cx="${X(0)}" cy="${Y(0)}" r="${dot*1.8}" fill="var(--ink)"/><text x="${X(0)}" y="${+Y(0)+fs*1.7}" font-size="${fs*.85}" fill="var(--ink)" text-anchor="middle">Point of focus</text></svg>`;
+  return s;
+}
+// Chain dimensions from the point of focus: horizontally to the front riser of each tier's first tread,
+// vertically to the lowest and top tread of every tier.
+function chainDims(rows,tiers,X,Y,fs){
+  const c='var(--accent)',tk=fs*.26,f=v=>(+v).toFixed(0),sw='stroke-width="1.3" vector-effect="non-scaling-stroke"';
+  const tick=(x,y)=>`<line x1="${f(x-tk)}" y1="${f(y+tk)}" x2="${f(x+tk)}" y2="${f(y-tk)}" stroke="${c}" stroke-width="2.6" vector-effect="non-scaling-stroke"/>`;
+  const ext=(x1,y1,x2,y2)=>`<line x1="${f(x1)}" y1="${f(y1)}" x2="${f(x2)}" y2="${f(y2)}" stroke="${c}" ${sw} stroke-dasharray="${f(fs*.25)} ${f(fs*.2)}" opacity=".55"/>`;
+  const firsts=tiers.map(ti=>rows.find(r=>r.tier===ti)),lasts=tiers.map(ti=>rows.filter(r=>r.tier===ti).pop());
+  let s='';
+  // horizontal: point of focus -> first riser of each tier
+  const yd=+Y(-fs*2.3),hp=[{x:0,z:0}].concat(firsts.map(r=>({x:r.x,z:r.z}))).sort((a,b)=>a.x-b.x);
+  hp.forEach(p=>{s+=ext(+X(p.x),+Y(p.z),+X(p.x),yd+tk*1.4)+tick(+X(p.x),yd);});
+  s+=`<line x1="${X(hp[0].x)}" y1="${f(yd)}" x2="${X(hp[hp.length-1].x)}" y2="${f(yd)}" stroke="${c}" ${sw}/>`;
+  for(let i=1;i<hp.length;i++)s+=`<text x="${f((+X(hp[i-1].x)+ +X(hp[i].x))/2)}" y="${f(yd+fs*.95)}" font-size="${f(fs*.62)}" fill="${c}" font-weight="650" text-anchor="middle">${L(hp[i].x-hp[i-1].x)}</text>`;
+  // vertical: point of focus -> lowest and top tread of each tier
+  const xd=+X(-fs*2.4),vp=[{x:0,z:0}];tiers.forEach((ti,i)=>{vp.push({x:firsts[i].x,z:firsts[i].z});if(lasts[i]!==firsts[i])vp.push({x:lasts[i].x,z:lasts[i].z});});
+  vp.forEach(p=>{s+=ext(+X(p.x),+Y(p.z),xd-tk*1.4,+Y(p.z))+tick(xd,+Y(p.z));});
+  s+=`<line x1="${f(xd)}" y1="${Y(vp[0].z)}" x2="${f(xd)}" y2="${Y(vp[vp.length-1].z)}" stroke="${c}" ${sw}/>`;
+  for(let i=1;i<vp.length;i++){const ym=(+Y(vp[i-1].z)+ +Y(vp[i].z))/2,xl=xd-fs*.38;
+    s+=`<text x="${f(xl)}" y="${f(ym)}" font-size="${f(fs*.62)}" fill="${c}" font-weight="650" text-anchor="middle" transform="rotate(-90 ${f(xl)} ${f(ym)})">${L(vp[i].z-vp[i-1].z)}</text>`;}
   return s;
 }
 let PLAN='field';
@@ -1068,7 +1101,7 @@ function update(){
   const perZone=(pred,what)=>{const c=zoneKeys(P).map(k=>[k,ZR[k].filter(pred).length]).filter(x=>x[1]);if(!c.length)return;
     const same=c.length===zoneKeys(P).length&&c.every(x=>x[1]===c[0][1]),n=c[0][1];
     msg.push(same?`${n} row${n>1?'s':''} ${what}${zoned(P)?' on every side':''}`:c.map(([k,n])=>`${zoneName(P,k,true)} ${n}`).join(', ')+` row${c.length>1||c[0][1]>1?'s':''} ${what}`);};
-  perZone(r=>r.C!=null&&status(r)!=='pass','below their C-value target');perZone(r=>r.rake!=null&&r.rake>P.maxRake,`steeper than ${P.maxRake}°`);
+  perZone(r=>r.C!=null&&status(r)!=='pass','below their C-value target');perZone(r=>r.rake!=null&&r.rake>P.maxRake,`steeper than ${P.maxRake}°`);perZone(r=>r.riser!=null&&r.riser>P.maxRiser+0.01,`with risers over ${L(P.maxRiser)}`);
   if(M.vd>P.vd)msg.push(`back row beyond the ${L(P.vd*1000,'m',0,true)} viewing distance limit`);
   M.rails.forEach(r=>msg.push(`${zl(r)} front row can't see the point of focus over the ${L(P.railH)} guard`));
   M.lowHead.forEach(h=>msg.push(`${L(h.h)} headroom under ${zl(h)}`));
@@ -1081,7 +1114,7 @@ function update(){
   $('planNote').innerHTML=`<span style="display:inline-block;width:18px;height:3px;background:${FOCAL};vertical-align:middle;margin-right:6px"></span>Point-of-focus boundary, dimensioned. Drawn from ${Sp.rule}. Field ${fieldDesc(P)}. Check against the current edition before issuing drawings.`;
   const tc=mm=>plain(mm),tu=imperial()?'':` (${unitSuffix().trim()})`;
   $('schedHead').textContent='Row schedule: '+zoneName(P,P.sec);
-  $('table').innerHTML=`<thead><tr><th>Row</th><th>Riser from focus${tu}</th><th>Tread height${tu}</th><th>Riser${tu}</th><th>Rake</th><th>C-value${tu}</th></tr></thead><tbody>`+ZR[P.sec].map(r=>`<tr><td>Tier ${r.tier+1}, row ${r.row}</td><td>${tc(r.x)}</td><td>${tc(r.z)}</td><td>${r.riser==null?'':tc(r.riser)}</td><td class="${r.rake>P.maxRake?'steep':''}">${r.rake==null?'':r.rake.toFixed(1)+'°'}</td><td class="${status(r)}">${r.C!=null?tc(r.C):r.railC!=null?'guard '+(r.railC>=0?'+':'')+tc(r.railC):'front row'}</td></tr>`).join('')+'</tbody>';
+  $('table').innerHTML=`<thead><tr><th>Row</th><th>Riser from focus${tu}</th><th>Tread height${tu}</th><th>Riser${tu}</th><th>Rake</th><th>C-value${tu}</th></tr></thead><tbody>`+ZR[P.sec].map(r=>`<tr><td>Tier ${r.tier+1}, row ${r.row}</td><td>${tc(r.x)}</td><td>${tc(r.z)}</td><td class="${r.riser>P.maxRiser+0.01?'steep':''}">${r.riser==null?'':tc(r.riser)}</td><td class="${r.rake>P.maxRake?'steep':''}">${r.rake==null?'':r.rake.toFixed(1)+'°'}</td><td class="${status(r)}">${r.C!=null?tc(r.C):r.railC!=null?'guard '+(r.railC>=0?'+':'')+tc(r.railC):'front row'}</td></tr>`).join('')+'</tbody>';
   renderOpts();
 }
 function renderOpts(){
@@ -1118,13 +1151,13 @@ $('exRevit').onclick=()=>{
     ['Estimated seats',M.cap],...M.tierSeats.map((x,i)=>[`Tier ${i+1} seats`,x]),
     ['Lowest C-value (mm)',M.worst?Math.round(M.worst.C):''],['Steepest rake (deg)',M.steep?+M.steep.rake.toFixed(2):''],['Top row above pitch (m)',+M.height.toFixed(2)],['Farthest viewing distance (m)',+M.vd.toFixed(1)],
     ['Eye height (mm)',P.eyeH],['Eye setback (mm)',P.setback],['Guard at upper tier fronts (mm)',P.railH],[],
-    ['Tier','Zone','Seats','Seat type','Rows','Tread (mm)','Seat width (mm)','Target C (mm)','Corners','Profile sheet']];
+    ['Tier','Zone','Seats','Seat type','Rows','Tread (mm)','Seat width (mm)','Target C (mm)','Corners','Profile sheet','Riser']];
   CH.forEach((c,ti)=>zoneKeys(P).forEach(k=>{const z=P.zt[ti].z[k],on=!!c[k];
-    sum.push([ti+1,zoneName(P,k),on?Math.round(M.zoneSeats[ti][k]):0,on?(SEATS[z.seat]||{name:'Custom'}).name:'open',on?z.rows:'',on?z.tread:'',on?z.seatW:'',on?z.target:'',zoned(P)?P.zt[ti].corners:'wrap',on?profSheet(ti,k):'']);}));
+    sum.push([ti+1,zoneName(P,k),on?Math.round(M.zoneSeats[ti][k]):0,on?(SEATS[z.seat]||{name:'Custom'}).name:'open',on?z.rows:'',on?z.tread:'',on?z.seatW:'',on?z.target:'',zoned(P)?P.zt[ti].corners:'wrap',on?profSheet(ti,k):'',on?(z.riser==='constant'?'Constant':'Parabolic'):'']);}));
   sum.push([],['Profile sheets list closed loops in mm. Origin is the point of focus on the field edge at pitch level. X runs away from the pitch, Z is up.'],
     ['Bowl pieces: each stand is extruded along LINE pieces and revolved at ARC pieces with its own profile. Sightline_BowlMass_R2024.dyn builds them.']);
   add(sum,'Summary');
-  CH.forEach((c,ti)=>Object.keys(c).forEach(k=>add([['Point','X (mm)','Z (mm)'],...profileOf(ZR[k].filter(r=>r.tier===ti),ti).map((p,i)=>[i+1,Math.round(p[0]),Math.round(p[1])])],profSheet(ti,k))));
+  CH.forEach((c,ti)=>Object.keys(c).forEach(k=>add([['Point','X (mm)','Z (mm)'],...profileOf(ZR[k].filter(r=>r.tier===ti),ti).map((p,i)=>[i+1,Math.round(p[0]*10)/10,Math.round(p[1]*10)/10])],profSheet(ti,k))));
   const r1=v=>v==null?'':Math.round(v*1000)/1000,geo=g=>[g.t,r1(g.x1),r1(g.y1),r1(g.x2),r1(g.y2),r1(g.cx),r1(g.cy),r1(g.r),g.a0==null?'':+g.a0.toFixed(7),g.sw==null?'':+g.sw.toFixed(7)];
   add([['Piece','Tier','Zone','Profile sheet','Type','X1 (mm)','Y1 (mm)','X2 (mm)','Y2 (mm)','CX (mm)','CY (mm)','R (mm)','Start (deg)','Sweep (deg)'],
     ...bowlPieces(P,ZR,CH).map((g,i)=>[i+1,g.tier+1,zoneName(P,g.zone,true),profSheet(g.tier,g.zone),...geo(g)]),
@@ -1132,7 +1165,7 @@ $('exRevit').onclick=()=>{
   add([['Seg','Type','X1 (mm)','Y1 (mm)','X2 (mm)','Y2 (mm)','CX (mm)','CY (mm)','R (mm)','Start (deg)','Sweep (deg)'],...focalPath(P).map((g,i)=>[i+1,...geo(g)]),
     [],['The point-of-focus boundary, counter-clockwise, same coordinates as Bowl pieces.']],'Focal path');
   add([['Tier','Zone','Row','Riser from focus (mm)','Tread height (mm)','Tread (mm)','Seat width (mm)','Riser (mm)','Rake (deg)','C-value (mm)','Guard clearance (mm)'],
-    ...ROWS.map(r=>[r.tier+1,zoneName(P,r.zone,true),r.row,Math.round(r.x),Math.round(r.z),r.T,r.seatW,r.riser??'',r.rake==null?'':+r.rake.toFixed(2),r.C==null?'':+r.C.toFixed(1),r.railC==null?'':Math.round(r.railC)])],'Rows');
+    ...ROWS.map(r=>[r.tier+1,zoneName(P,r.zone,true),r.row,Math.round(r.x*10)/10,Math.round(r.z*10)/10,Math.round(r.T*10)/10,Math.round(r.seatW*10)/10,r.riser==null?'':Math.round(r.riser*10)/10,r.rake==null?'':+r.rake.toFixed(2),r.C==null?'':+r.C.toFixed(1),r.railC==null?'':Math.round(r.railC)])],'Rows');
   const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
   offer(slug()+'.xlsx',new Blob([buf]));
 };

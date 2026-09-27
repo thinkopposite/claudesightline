@@ -82,6 +82,7 @@ summary{cursor:pointer;font-weight:650;font-size:15px;font-stretch:85%}
 .planhead h3,.opthead{font-size:15px;font-weight:650;font-stretch:85%;margin:0}
 .opthead{margin:20px 0 8px}
 #plan svg{max-height:82vh}
+#plan svg.portrait{max-height:150vh}
 #plan text{font-family:inherit}
 select.sel{width:100%;font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:7px 8px;cursor:pointer}
 .opt{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 12px;background:var(--panel);border:1px solid var(--line);border-radius:4px;cursor:pointer;text-align:left}
@@ -822,7 +823,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.10';
+const VERSION='2026.09.27.11';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1110,11 +1111,12 @@ function drawPlan(){
       const d0=tr[0].x/1000,d1=(tr[tr.length-1].x+tr[tr.length-1].T)/1000,fill=tr[0].seat==='bench'?'var(--bench)':'var(--concrete)';
       const path=c[k]==='ring'?ptsPath(offsetPts(st,d1))+ptsPath(offsetPts(st,d0)):(()=>{const q=chainStations(c[k]);return ptsPath(offsetPts(q,d1).concat(offsetPts(q,d0).reverse()));})();
       rings+=`<path d="${path}" fill-rule="evenodd" fill="${fill}" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke" opacity="${ti?0.84:1}"><title>Tier ${ti+1} ${zoneName(P,k)}: ${fmt(M.zoneSeats[ti][k])} seats</title></path>`;}});
-    if(zoned(P)){const G=rectGeo(P);GEO.forEach(k=>{const s=G.side[k],zr=ZR[k];if(!zr.length)return;const top=zr[zr.length-1],d=(top.x+top.T)/1000+fs*1.6;
-      const f=k===P.sec?0.2:0.5;                                  // keep clear of the section marker at mid-side
-      labels.push([s.p[0]+(s.q[0]-s.p[0])*f+s.n[0]*d,s.p[1]+(s.q[1]-s.p[1])*f+s.n[1]*d,zoneName(P,k,true)]);});}
+    if(zoned(P)){const G=rectGeo(P),back=k=>{const zr=ZR[k];if(!zr.length)return 0;const t=zr[zr.length-1];return (t.x+t.T)/1000;};
+      const dS=Math.max(back('T'),back('B')),dE=Math.max(back('L'),back('R'));      // same offset on opposite sides keeps W and E level
+      GEO.forEach(k=>{const s=G.side[k];if(!ZR[k].length)return;const d=(isSide(k)?dS:dE)+fs*2.6;
+        labels.push([(s.p[0]+s.q[0])/2+s.n[0]*d,(s.p[1]+s.q[1])/2+s.n[1]*d,zoneName(P,k,true)]);});}
     const sc=sectionAt(),sw=(x1-x0)/45;grow(sc[0]+sc[2]*(Rmax+1.5)+sc[2]*sw*1.4,sc[1]+sc[3]*(Rmax+1.5)+sc[3]*sw*1.4,sw*1.6);
-    labels.forEach(([x,y])=>grow(x,y,fs*2.6));
+    labels.forEach(([x,y])=>grow(x,y,fs*1.8));
   }else{dims=focalDims(P);
     for(const d of dims){const D=dimLabel(d,fs);if(d.r)grow(d.c[0],d.c[1]);else{grow(D.a[0],D.a[1],fs);grow(D.b[0],D.b[1],fs);}
       const R=D.rot*Math.PI/180,hx=Math.abs(Math.cos(R))*D.tw*.65+Math.abs(Math.sin(R))*fs*2+fs*.4,hy=Math.abs(Math.sin(R))*D.tw*.65+Math.abs(Math.cos(R))*fs*2+fs*.4;
@@ -1123,13 +1125,13 @@ function drawPlan(){
   // drawing rotated north up; view box = the rotated extents; labels drawn upright at their rotated positions
   const cs=[[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map(([x,y])=>rotPt(x,y,t)),vx0=Math.min(...cs.map(c=>c[0])),vy0=Math.min(...cs.map(c=>c[1])),
     vW=Math.max(...cs.map(c=>c[0]))-vx0,vH=Math.max(...cs.map(c=>c[1]))-vy0;
-  let s=`<svg viewBox="${vx0.toFixed(2)} ${vy0.toFixed(2)} ${vW.toFixed(2)} ${vH.toFixed(2)}" role="img" aria-label="${S.org} ${S.name} ${PLAN==='field'?'field layout':'bowl plan'}, north up">`;
+  let s=`<svg viewBox="${vx0.toFixed(2)} ${vy0.toFixed(2)} ${vW.toFixed(2)} ${vH.toFixed(2)}"${vH>vW*1.05?' class="portrait"':''} role="img" aria-label="${S.org} ${S.name} ${PLAN==='field'?'field layout':'bowl plan'}, north up">`;
   let body=bufferFill()+S.draw(P,g)+rings+`<path d="${ptsPath(bnd)}" fill="none" stroke="${FOCAL}" stroke-width="${(3.4*g.k).toFixed(3)}" stroke-linejoin="round"/>`,over='';
   if(PLAN==='bowl'){const sec=sectionAt(),ex=sec[0]+sec[2]*(Rmax+1.5),ey=sec[1]+sec[3]*(Rmax+1.5),lf=W/45;
     over+=labels.map(([x,y,tx])=>{const [rx,ry]=rotPt(x,y,t);return `<text x="${rx.toFixed(2)}" y="${ry.toFixed(2)}" font-size="${(lf*1.1).toFixed(2)}" font-weight="700" fill="var(--ink)" text-anchor="middle" dominant-baseline="middle">${tx}</text>`;}).join('');
     body+=`<line x1="${sec[0].toFixed(2)}" y1="${sec[1].toFixed(2)}" x2="${ex.toFixed(2)}" y2="${ey.toFixed(2)}" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>`;
-    const [nx,ny]=rotPt(sec[2],sec[3],t),[rx,ry]=rotPt(ex,ey,t),side=Math.abs(nx)<0.5;          // marker points up/down: label beyond its end
-    over+=`<text x="${(rx+(side?nx*lf*.9:-nx*lf*2.2)).toFixed(2)}" y="${(ry+(side?ny*lf*.9:-lf*.9)).toFixed(2)}" font-size="${lf.toFixed(2)}" fill="var(--accent)" font-weight="650" text-anchor="middle" dominant-baseline="middle" paint-order="stroke" stroke="var(--panel)" stroke-width="${(W/150).toFixed(2)}">Section</text>`;
+    const [nx,ny]=rotPt(sec[2],sec[3],t),[rx,ry]=rotPt(ex,ey,t),vert=Math.abs(nx)<0.5;           // text beside the marker's end
+    over+=`<text x="${(rx-nx*lf*.9+(vert?lf*2.3:0)).toFixed(2)}" y="${(ry-ny*lf*.9-(vert?0:lf*.9)).toFixed(2)}" font-size="${lf.toFixed(2)}" fill="var(--accent)" font-weight="650" text-anchor="middle" dominant-baseline="middle" paint-order="stroke" stroke="var(--panel)" stroke-width="${(W/150).toFixed(2)}">Section</text>`;
     // north arrow
     const na=lf*1.6,nxp=vx0+vW-na*1.2,nyp=vy0+na*1.3;
     over+=`<path d="M${nxp.toFixed(2)} ${(nyp-na*.9).toFixed(2)}L${(nxp+na*.4).toFixed(2)} ${(nyp+na*.5).toFixed(2)}L${nxp.toFixed(2)} ${(nyp+na*.2).toFixed(2)}L${(nxp-na*.4).toFixed(2)} ${(nyp+na*.5).toFixed(2)}Z" fill="var(--ink)"/><text x="${nxp.toFixed(2)}" y="${(nyp+na*1.2).toFixed(2)}" font-size="${(lf*.9).toFixed(2)}" font-weight="700" fill="var(--ink)" text-anchor="middle" dominant-baseline="middle">N</text>`;}

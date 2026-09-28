@@ -110,6 +110,11 @@ th:first-child,td:first-child{text-align:left}
 #zones td,#zones th{padding:5px 12px}
 a.btnlink{font-size:13.5px;color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:6px 11px;text-decoration:none;display:inline-flex;align-items:center}
 a.btnlink:hover{border-color:var(--ink)}
+.eyes{margin-top:4px}
+.eyes h2,.eyes label,.eyes .sl-val,.eyes input.len,.eyes .sl-val input{color:#D40000}
+.eyes input[type=range]{accent-color:#D40000}
+.eyes input:disabled{opacity:.75;cursor:not-allowed}
+.eyes #eyeLock.on{background:#D40000;border-color:#D40000;color:#fff}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:9px 16px;border-radius:4px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.show{opacity:1}
 @media (max-width:900px){.layout{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}.cols{grid-template-columns:1fr}main{padding:14px}}
@@ -607,16 +612,19 @@ function tierDef(rows,link,o={}){return {link,corners:'auto',z:Object.fromEntrie
 // Eye points from the reference sections (heights above the tread the spectator is on):
 // chairback: sitting 3'-8" directly over the back riser; standing 5'-3 1/2", 1'-6" forward of the sitting eye.
 // bench: sitting 2'-10", standing 5'-6", both 1'-0" back from the front edge of the tread.
-const eyeDefaults=()=>({chSitH:44*25.4,chStH:63.5*25.4,chSitBack:0,chStFwd:18*25.4,bnSitH:34*25.4,bnStH:66*25.4,bnFront:12*25.4});
+// Eye sight values: the standard for every sightline calculation. Heights above the tread the spectator is on.
+// The bench sitting eye sits over the back riser, as the chairback's does.
+const EYE_REV=2,eyeDefaults=()=>({chSitH:44*25.4,chStH:63.5*25.4,chSitBack:0,chStFwd:18*25.4,bnSitH:44*25.4,bnStH:63.5*25.4,bnStFwd:12*25.4});
+let EYELOCK=true;                                                        // eye sight values can only be edited once unlocked
 const isBench=seat=>seat==='bench';
 // eye position for a row: [distance back from the row's front riser, height above its tread]
 function eyeAt(P,seat,T,mode){const e=P.eye;
-  if(isBench(seat))return [e.bnFront,mode==='stand'?e.bnStH:e.bnSitH];
+  if(isBench(seat))return mode==='stand'?[T-e.bnStFwd,e.bnStH]:[T,e.bnSitH];
   const sit=T-e.chSitBack;return mode==='stand'?[sit-e.chStFwd,e.chStH]:[sit,e.chSitH];}
 function defaults(){const S=SPORTS.ncaafb,f={};
   return {sport:'ncaafb',L:S.L,W:S.W,lanes:8,fl:330*FT,cf:400*FT,bs:60*FT,north:'L',planOri:'v',sec:'T',tierCount:2,
   zt:[tierDef(22,'all',f),tierDef(18,'pairs',f),tierDef(14,'pairs',f)],
-  eye:eyeDefaults(),eyeMode:'sit',slabT:6*25.4,step:12.7,maxRiser:24*25.4,bank:1,maxRake:34,loss:12,vd:S.vd,capTarget:30000,railH:660,minHead:2300,suiteH:4.27};}
+  eye:eyeDefaults(),eyeRev:EYE_REV,eyeMode:'sit',slabT:6*25.4,step:12.7,maxRiser:24*25.4,bank:1,maxRake:34,loss:12,vd:S.vd,capTarget:30000,railH:660,minHead:2300,suiteH:4.27};}
 function defaultsPinned(){const d=defaults();pinUpperTiers(d);return d;}
 // Saved bowls from before zones: one profile for the whole bowl becomes the same profile on every side.
 function migrate(o){if(!o||o.zt)return o;const d=defaults();
@@ -691,7 +699,7 @@ function gapsOf(P){const Q=Object.assign({},P,{tierCount:3}),g={};
     g[k][ti]=lo.length&&up?(up.x-(lo[lo.length-1].x+lo[lo.length-1].T))/1000:P.zt[ti].z[k].gap;}}return g;}
 function keepGaps(P,g){for(let ti=1;ti<3;ti++)for(const k of GEO)Object.assign(P.zt[ti].z[k],{X:null,gap:g[k][ti]});pinUpperTiers(P);}
 function fixP(P){if(!SPORTS[P.sport])P.sport=LEGACY_SPORT[P.sport]||'fifa';const d=defaults();
-  P.eye=Object.assign(eyeDefaults(),P.eye||{});if(P.eyeMode!=='stand')P.eyeMode='sit';
+  if(P.eyeRev!==EYE_REV){P.eye=eyeDefaults();P.eyeRev=EYE_REV;}P.eye=Object.assign(eyeDefaults(),P.eye||{});delete P.eye.bnFront;if(P.eyeMode!=='stand')P.eyeMode='sit';
   for(const k of['fl','cf','bs','L','W','lanes','railH','minHead','suiteH','maxRiser','step','slabT'])if(!(P[k]>0))P[k]=d[k];
   P.north='L';if(P.planOri!=='h')P.planOri='v';if(!GEO.includes(P.sec))P.sec='T';
   if(!Array.isArray(P.zt)||P.zt.length<3)P.zt=d.zt;
@@ -857,7 +865,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.22';
+const VERSION='2026.09.27.23';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -999,12 +1007,12 @@ function renderControls(){
   const G=groups(P,ti);EDIT.g=Math.min(EDIT.g,G.length-1);
   if(G.length>1)h+='<div class="tabs sub" role="tablist">'+G.map((g,i)=>`<button role="tab" data-eg="${i}" class="${i===EDIT.g?'on':''}" aria-selected="${i===EDIT.g}">${groupName(P,ti,g).replace(/ \(.*\)/,'')}</button>`).join('')+'</div>';
   h+=`<p class="zhead">${groupName(P,ti,G[EDIT.g])}</p>`+zoneEditor(ti,G[EDIT.g])+'</div>';
-  h+='<details><summary>Advanced</summary>'+fieldSliders()
-    +'<div class="lab">Eye points (rarely changed)</div>'
+  h+=`<div class="eyes"><h2>Eye sight values (do not change)</h2><div class="seg"><button id="eyeLock" aria-pressed="${!EYELOCK}" class="${EYELOCK?'on':''}">${EYELOCK?'🔒 Locked':'🔓 Unlocked'}</button><button id="eyeReset">Reset</button></div>`
     +slider('eye.chSitH','Chairback sitting eye height',24*25.4,72*25.4,6.35,'mm')+slider('eye.chStH','Chairback standing eye height',24*25.4,72*25.4,6.35,'mm')
     +slider('eye.chSitBack','Chairback sitting eye forward of back riser',0,36*25.4,6.35,'mm')+slider('eye.chStFwd','Chairback standing eye forward of sitting eye',0,36*25.4,6.35,'mm')
-    +slider('eye.bnSitH','Bench sitting eye height',24*25.4,72*25.4,6.35,'mm')+slider('eye.bnStH','Bench standing eye height',24*25.4,72*25.4,6.35,'mm')
-    +slider('eye.bnFront','Bench eye back from front edge',0,36*25.4,6.35,'mm')
+    +slider('eye.bnSitH','Bench seat sitting eye height',24*25.4,72*25.4,6.35,'mm')+slider('eye.bnStH','Bench seat standing eye height',24*25.4,72*25.4,6.35,'mm')
+    +slider('eye.bnStFwd','Bench seat standing eye forward of sitting eye',0,36*25.4,6.35,'mm')+'</div>';
+  h+='<details><summary>Advanced</summary>'+fieldSliders()
     +slider('step','Round risers up to',25.4/16,2*25.4,25.4/16,'mm')+slider('maxRiser','Maximum riser',12*25.4,30*25.4,12.7,'mm')+slider('bank','Rows per riser bank',1,8,1,'rows')
     +slider('maxRake','Maximum rake',25,40,0.5,'°')+slider('vd','Viewing distance limit',100,260,5,'m')
     +slider('loss','Seats lost to aisles and vomitories',0,30,1,'%')
@@ -1012,6 +1020,7 @@ function renderControls(){
     +'<p class="hint">Where neighbouring sides differ, the corner is left open for vomitories, boards or access. Matching sides wrap round the corner.</p><button id="reset" style="margin-top:10px">Reset to defaults</button></details>';
   const c=$('controls'), open=c.querySelector('details')?.open;
   c.innerHTML=h; if(open)c.querySelector('details').open=true;
+  c.querySelectorAll('.eyes input').forEach(i=>{i.disabled=EYELOCK;i.title=EYELOCK?'Unlock to change':'';});
 }
 function syncField(p,el){const mt=META[p],v=get(p);
   document.querySelectorAll(`[data-p="${p}"]`).forEach(x=>{if(x===el)return;
@@ -1043,6 +1052,8 @@ $('controls').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.seat){const s=SEATS[b.dataset.seat],pre=b.dataset.g;set(pre+'.seat',b.dataset.seat);set(pre+'.tread',s.tread);set(pre+'.seatW',s.seatW);}
   else if(b.dataset.riser){set(b.dataset.g+'.riser',b.dataset.riser);}
+  else if(b.id==='eyeLock'){EYELOCK=!EYELOCK;renderControls();return;}
+  else if(b.id==='eyeReset'){P.eye=eyeDefaults();toast('Eye sight values reset to the standard.');}
   else if(b.dataset.on){set(b.dataset.on+'.on',!get(b.dataset.on+'.on'));}
   else if(b.dataset.tc){P.tierCount=+b.dataset.tc;}
   else if(b.dataset.slab){P.slabT=+b.dataset.slab*25.4;}
@@ -1335,7 +1346,7 @@ $('exRevit').onclick=()=>{
     ...(zoned(P)?[['North','-X in the Revit model: the north end zone sits at -X, East sideline at +Y']]:[]),
     ['Estimated seats',M.cap],...M.tierSeats.map((x,i)=>[`Tier ${i+1} seats`,x]),
     ['Lowest C-value (mm)',M.worst?Math.round(M.worst.C):''],['Steepest rake (deg)',M.steep?+M.steep.rake.toFixed(2):''],['Top row above pitch (m)',+M.height.toFixed(2)],['Farthest viewing distance (m)',+M.vd.toFixed(1)],
-    ['Tread and riser thickness (mm)',Math.round(slabT()*10)/10],['Sightline mode',P.eyeMode==='stand'?'Standing':'Sitting'],['Chairback sitting eye (mm)',P.eye.chSitH],['Chairback standing eye (mm)',P.eye.chStH],['Chairback sitting eye forward of back riser (mm)',P.eye.chSitBack],['Chairback standing eye forward of sitting (mm)',P.eye.chStFwd],['Bench sitting eye (mm)',P.eye.bnSitH],['Bench standing eye (mm)',P.eye.bnStH],['Bench eye back from front edge (mm)',P.eye.bnFront],['Guard at upper tier fronts (mm)',P.railH],[],
+    ['Tread and riser thickness (mm)',Math.round(slabT()*10)/10],['Sightline mode',P.eyeMode==='stand'?'Standing':'Sitting'],['Chairback sitting eye (mm)',P.eye.chSitH],['Chairback standing eye (mm)',P.eye.chStH],['Chairback sitting eye forward of back riser (mm)',P.eye.chSitBack],['Chairback standing eye forward of sitting (mm)',P.eye.chStFwd],['Bench sitting eye (mm)',P.eye.bnSitH],['Bench standing eye (mm)',P.eye.bnStH],['Bench standing eye forward of sitting (mm)',P.eye.bnStFwd],['Guard at upper tier fronts (mm)',P.railH],[],
     ['Tier','Zone','Seats','Seat type','Rows','Tread (mm)','Seat width (mm)','Target C (mm)','Corners','Profile sheet','Riser','Bottom row (mm)','Top row (mm)','Lowest riser from focus (mm)']];
   CH.forEach((c,ti)=>zoneKeys(P).forEach(k=>{const z=P.zt[ti].z[k],on=!!c[k];
     sum.push([ti+1,zoneName(P,k),on?Math.round(M.zoneSeats[ti][k]):0,on?(SEATS[z.seat]||{name:'Custom'}).name:'open',on?z.rows:'',on?z.tread:'',on?z.seatW:'',on?z.target:'',zoned(P)?P.zt[ti].corners:'wrap',on?profSheet(ti,k):'',on?(z.riser==='constant'?'Constant':'Parabolic')+` (${BASIS[z.basis]||'sitting'})`:'',on?Math.round(z.tread0*10)/10:'',on?Math.round(z.treadN*10)/10:'',on?Math.round(ZR[k].find(r=>r.tier===ti).x*10)/10:'']);}));

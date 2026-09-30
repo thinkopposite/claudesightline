@@ -725,27 +725,33 @@ const sameProfile=(A,B)=>A.length===B.length&&A.every((r,i)=>Math.abs(r.x-B[i].x
 function cornerKind(P,ZR,ti,k){const nk=GEO[(GEO.indexOf(k)+1)%4],mode=P.zt[ti].corners;if(mode==='open')return 'open';
   const a=ZR[k].filter(r=>r.tier===ti),b=ZR[nk].filter(r=>r.tier===ti);return a.length>0&&sameProfile(a,b)?mode:'open';}
 const cornerWraps=(P,ZR,ti,k)=>cornerKind(P,ZR,ti,k)!=='open';
-// Chain of pieces each stand is swept along. Round: half of the corner arc each side. Chamfered: half of the straight corner
-// each side (CHAM, from a side end to the corner's mid-line). Open: the end-zone stand runs on to the front row of the sideline
+// Chain of pieces each stand is swept along. Round and chamfered corners belong wholly to the end-zone stands, so the East/West
+// stands stay straight and their ends are the NEZ/SEZ end lines. Open: the end-zone stand runs on to the front row of the sideline
 // stand, so the sideline and end-zone stands stay straight and the corner between them is left open.
 function chains(P,ZR){
   const out=[];
   for(let ti=0;ti<P.tierCount;ti++){const c={};
     if(!zoned(P)){if(ZR.T.some(r=>r.tier===ti))c.T='ring';out.push(c);continue;}
-    const G=rectGeo(P),front=k=>{const r=ZR[k].find(r=>r.tier===ti);return r?r.x/1000:0;};
-    const cham=(k,first)=>{const nk=GEO[(GEO.indexOf(k)+1)%4],s1=G.side[k],s2=G.side[nk],c1=s1.q,c2=s2.p,n1=s1.n,n2=s2.n;
-      const mid=[(c1[0]+c2[0])/2,(c1[1]+c2[1])/2],m=[(n1[0]+n2[0])/2,(n1[1]+n2[1])/2];
-      return first?{t:'CHAM',a:c1,na:n1,b:mid,nb:m}:{t:'CHAM',a:mid,na:m,b:c2,nb:n2};};
+    const G=rectGeo(P),front=k=>{const r=ZR[k].find(r=>r.tier===ti);return r?r.x/1000:0;},front0=k=>{const r=ZR[k].find(r=>r.tier===0);return r?r.x/1000:0;};
+    const unit=s=>{const u=[s.q[0]-s.p[0],s.q[1]-s.p[1]],l=Math.hypot(u[0],u[1])||1;return [u[0]/l,u[1]/l];};
+    // chamfer: each side runs on to the corner of the buffer rectangle (Tier 1 front rows), and the chamfer starts there
+    const cham=(k,first)=>{const nk=GEO[(GEO.indexOf(k)+1)%4],s1=G.side[k],s2=G.side[nk],u1=unit(s1),u2=unit(s2),e1=G.R+front0(nk),e2=G.R+front0(k);
+      const c1=[s1.q[0]+u1[0]*e1,s1.q[1]+u1[1]*e1],c2=[s2.p[0]-u2[0]*e2,s2.p[1]-u2[1]*e2],n1=s1.n,n2=s2.n;
+      return {t:'CHAM',a:c1,na:n1,b:c2,nb:n2};};                        // the whole corner, from one side's end to the next side's start
     GEO.forEach((k,i)=>{if(!ZR[k].some(r=>r.tier===ti))return;const pk=GEO[(i+3)%4],ch=[],kp=cornerKind(P,ZR,ti,pk),kn=cornerKind(P,ZR,ti,k);
-      if(kp==='round'){const C=G.corner[pk];ch.push({t:'ARC',c:C.c,r:G.R,a0:C.a0+45,sw:45});}
-      if(kp==='chamfer')ch.push(cham(pk,false));
-      const s=G.side[k];let p=s.p.slice(),q=s.q.slice();
-      if(!isSide(k)){const u=[(q[0]-p[0]),(q[1]-p[1])],ul=Math.hypot(u[0],u[1]);u[0]/=ul;u[1]/=ul;   // open: end zone reaches the sideline front row
+      // corners belong to the end-zone stands: East/West stay straight and their ends are the end lines of NEZ/SEZ
+      const endZone=!isSide(k);
+      if(endZone&&kp==='round'){const C=G.corner[pk];ch.push({t:'ARC',c:C.c,r:G.R,a0:C.a0,sw:90});}
+      if(endZone&&kp==='chamfer')ch.push(cham(pk));
+      const s=G.side[k],u=unit(s);let p=s.p.slice(),q=s.q.slice();
+      if(kp==='chamfer'){const e=G.R+front0(pk);p=[p[0]-u[0]*e,p[1]-u[1]*e];}                  // straight on to the buffer corner
+      if(kn==='chamfer'){const e=G.R+front0(GEO[(i+1)%4]);q=[q[0]+u[0]*e,q[1]+u[1]*e];}
+      if(!isSide(k)){                                                                          // open: end zone reaches the sideline front row
         if(kp==='open'){const e=G.R+front(pk);p=[p[0]-u[0]*e,p[1]-u[1]*e];}
         if(kn==='open'){const e=G.R+front(GEO[(i+1)%4]);q=[q[0]+u[0]*e,q[1]+u[1]*e];}}
       if(Math.hypot(q[0]-p[0],q[1]-p[1])>0.005)ch.push({t:'LINE',p,q,n:s.n});
-      if(kn==='round'){const C=G.corner[k];ch.push({t:'ARC',c:C.c,r:G.R,a0:C.a0,sw:45});}
-      if(kn==='chamfer')ch.push(cham(k,true));
+      if(endZone&&kn==='round'){const C=G.corner[k];ch.push({t:'ARC',c:C.c,r:G.R,a0:C.a0,sw:90});}
+      if(endZone&&kn==='chamfer')ch.push(cham(k));
       c[k]=ch;});
     out.push(c);}
   return out;
@@ -846,7 +852,8 @@ function cornerPlates(P,ZR,CH){const out=[],t=slabT(),k=1000;
     if(ti===0&&tr[0].z-t>1)bands.push([tr[0].x,tr[0].x+t,0,tr[0].z-t]);
     for(const g of c[z]){if(g.t!=='CHAM')continue;
       for(const [xa,xb,z0,z1] of bands){const P4=[[g.a,g.na,xa],[g.a,g.na,xb],[g.b,g.nb,xb],[g.b,g.nb,xa]].map(([o,n,x])=>[(o[0]+n[0]*x/1000)*k,-(o[1]+n[1]*x/1000)*k]);
-        out.push({tier:ti,zone:z,pts:P4,z0:Math.max(0,z0),z1});}}}});
+        const q=P4.filter((p,i)=>Math.hypot(p[0]-P4[(i+3)%4][0],p[1]-P4[(i+3)%4][1])>1);
+        if(q.length>=3)out.push({tier:ti,zone:z,pts:q.length===4?q:[...q,q[q.length-1]],z0:Math.max(0,z0),z1});}}}});
   return out;}
 function fitCapacity(P){
   const base=[];P.zt.slice(0,P.tierCount).forEach(t=>GEO.forEach(k=>base.push([t.z[k],t.z[k].rows])));let lo=0.1,hi=6;
@@ -898,7 +905,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.30';
+const VERSION='2026.09.27.32';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1155,7 +1162,7 @@ function drawSection(rows,o={}){
 // vertically to the lowest and top tread of every tier.
 function chainDims(rows,tiers,X,Y,fs,band){
   const c='var(--dim)',tk=fs*.26,f=v=>(+v).toFixed(0),sw='stroke-width="1.3" vector-effect="non-scaling-stroke"';
-  const tick=(x,y)=>`<line x1="${f(x-tk)}" y1="${f(y+tk)}" x2="${f(x+tk)}" y2="${f(y-tk)}" stroke="${c}" stroke-width="2.6" vector-effect="non-scaling-stroke"/>`;
+  const tick=(x,y)=>`<line x1="${f(x-tk)}" y1="${f(y+tk)}" x2="${f(x+tk)}" y2="${f(y-tk)}" stroke="${c}" stroke-width="1.3" vector-effect="non-scaling-stroke"/>`;
   const ext=(x1,y1,x2,y2)=>`<line x1="${f(x1)}" y1="${f(y1)}" x2="${f(x2)}" y2="${f(y2)}" stroke="${c}" stroke-width="0.8" vector-effect="non-scaling-stroke"/>`;
   const firsts=tiers.map(ti=>rows.find(r=>r.tier===ti)),lasts=tiers.map(ti=>rows.filter(r=>r.tier===ti).pop());
   let s='';
@@ -1165,19 +1172,13 @@ function chainDims(rows,tiers,X,Y,fs,band){
     if(last)s+=ext(+X(0),+Y(0),+X(0),yl-tk*1.4);                                  // one extension line from the point of focus to the top
     s+=ext(+X(r.x),+Y(r.z),+X(r.x),yl-tk*1.4)+tick(+X(0),yl)+tick(+X(r.x),yl)
       +`<line x1="${X(0)}" y1="${f(yl)}" x2="${X(r.x)}" y2="${f(yl)}" stroke="${c}" ${sw}/>`
-      +`<text x="${f((+X(0)+ +X(r.x))/2)}" y="${f(yl-fs*.32)}" font-size="${f(fs*.46)}" fill="${c}" font-weight="650" text-anchor="middle">Tier ${r.tier+1}: ${L(r.x)}</text>`;});
+      +`<text x="${f((+X(0)+ +X(r.x))/2)}" y="${f(yl-fs*.32)}" font-size="${f(fs*.54)}" fill="${c}" font-weight="650" text-anchor="middle">Tier ${r.tier+1}: ${L(r.x)}</text>`;});
   // vertical: point of focus -> lowest and top tread of each tier
   const xd=+X(-fs*2.4),vp=[{x:0,z:0}];tiers.forEach((ti,i)=>{vp.push({x:firsts[i].x,z:firsts[i].z});if(lasts[i]!==firsts[i])vp.push({x:lasts[i].x,z:lasts[i].z});});
   vp.forEach(p=>{s+=ext(+X(p.x),+Y(p.z),xd-tk*1.4,+Y(p.z))+tick(xd,+Y(p.z));});
   s+=`<line x1="${f(xd)}" y1="${Y(vp[0].z)}" x2="${f(xd)}" y2="${Y(vp[vp.length-1].z)}" stroke="${c}" ${sw}/>`;
   for(let i=1;i<vp.length;i++){const ym=(+Y(vp[i-1].z)+ +Y(vp[i].z))/2,xl=xd-fs*.38;
-    s+=`<text x="${f(xl)}" y="${f(ym)}" font-size="${f(fs*.46)}" fill="${c}" font-weight="650" text-anchor="middle" transform="rotate(-90 ${f(xl)} ${f(ym)})">${L(vp[i].z-vp[i-1].z)}</text>`;}
-  // field level to the top of the bottom tread, every 5th tread and the top tread of each tier, drawn under the tread
-  tiers.forEach(ti=>{const tr=rows.filter(r=>r.tier===ti);
-    tr.forEach((r,i)=>{if(!(i===0||r.row%5===0||i===tr.length-1))return;          // bottom tread, every 5th, top tread
-      const x=+X(r.x+r.T*.5),y0=+Y(0),y1=+Y(r.z),ym=(y0+y1)/2,xl=x-fs*.28;
-      s+=`<line x1="${f(x)}" y1="${f(y0)}" x2="${f(x)}" y2="${f(y1)}" stroke="${c}" stroke-width="0.8" vector-effect="non-scaling-stroke"/>`+tick(x,y0)+tick(x,y1)
-        +`<text x="${f(xl)}" y="${f(ym)}" font-size="${f(fs*.38)}" fill="${c}" font-weight="600" text-anchor="middle" transform="rotate(-90 ${f(xl)} ${f(ym)})">${L(r.z)}</text>`;});});
+    s+=`<text x="${f(xl)}" y="${f(ym)}" font-size="${f(fs*.54)}" fill="${c}" font-weight="650" text-anchor="middle" transform="rotate(-90 ${f(xl)} ${f(ym)})">${L(vp[i].z-vp[i-1].z)}</text>`;}
   return s;
 }
 let PLAN='bowl',PLANROT=0;

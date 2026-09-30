@@ -710,7 +710,7 @@ function fixP(P){if(!SPORTS[P.sport])P.sport=LEGACY_SPORT[P.sport]||'fifa';const
   Object.assign(P,{step:12.7,maxRiser:24*25.4,bank:1,railH:27*25.4,minHead:10*304.8});             // fixed values
   if(P.sport==='nfl'||P.sport==='ncaafb')Object.assign(P,{L:360*0.3048,W:160*0.3048});           // football field 360 ft x 160 ftif(!GEO.includes(P.sec))P.sec='T';
   if(!Array.isArray(P.zt)||P.zt.length<3)P.zt=d.zt;
-  P.zt.forEach((t,i)=>{if(!LINKS[t.link])t.link='none';if(t.corners==='auto')t.corners='round';if(!['chamfer','round','open'].includes(t.corners))t.corners='chamfer';GEO.forEach(k=>{const o=t.z[k]||{};if(o.tread0==null)o.tread0=o.tread;if(o.treadN==null)o.treadN=o.tread;if(!SEATS[o.seat])o.seat='standard';o.suites=0;t.z[k]=zp(o);});});
+  P.zt.forEach((t,i)=>{if(i&&P.zt[0].corners)t.corners=P.zt[0].corners;if(!LINKS[t.link])t.link='none';if(t.corners==='auto')t.corners='round';if(!['chamfer','round','open'].includes(t.corners))t.corners='chamfer';GEO.forEach(k=>{const o=t.z[k]||{};if(o.tread0==null)o.tread0=o.tread;if(o.treadN==null)o.treadN=o.tread;if(!SEATS[o.seat])o.seat='standard';o.suites=0;t.z[k]=zp(o);});});
   pinUpperTiers(P);return P;}
 function status(r){if(r.railC!=null)return r.railC>=0?'pass':'fail';if(r.C==null)return'front';
   if(r.C>=r.target-0.05)return'pass';if(r.C>=r.target*2/3)return'reduced';return'fail';}
@@ -746,9 +746,9 @@ function chains(P,ZR){
       const s=G.side[k],u=unit(s);let p=s.p.slice(),q=s.q.slice();
       if(kp==='chamfer'){const e=G.R+front0(pk);p=[p[0]-u[0]*e,p[1]-u[1]*e];}                  // straight on to the buffer corner
       if(kn==='chamfer'){const e=G.R+front0(GEO[(i+1)%4]);q=[q[0]+u[0]*e,q[1]+u[1]*e];}
-      if(!isSide(k)){                                                                          // open: end zone reaches the sideline front row
-        if(kp==='open'){const e=G.R+front(pk);p=[p[0]-u[0]*e,p[1]-u[1]*e];}
-        if(kn==='open'){const e=G.R+front(GEO[(i+1)%4]);q=[q[0]+u[0]*e,q[1]+u[1]*e];}}
+      if(!isSide(k)){                                                                          // open: every tier of an end zone reaches the Tier 1 sideline front row
+        if(kp==='open'){const e=G.R+front0(pk);p=[p[0]-u[0]*e,p[1]-u[1]*e];}
+        if(kn==='open'){const e=G.R+front0(GEO[(i+1)%4]);q=[q[0]+u[0]*e,q[1]+u[1]*e];}}
       if(Math.hypot(q[0]-p[0],q[1]-p[1])>0.005)ch.push({t:'LINE',p,q,n:s.n});
       if(endZone&&kn==='round'){const C=G.corner[k];ch.push({t:'ARC',c:C.c,r:G.R,a0:C.a0,sw:90});}
       if(endZone&&kn==='chamfer')ch.push(cham(k));
@@ -905,7 +905,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.33';
+const VERSION='2026.09.27.34';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1114,7 +1114,7 @@ $('controls').addEventListener('click',e=>{
   else if(b.dataset.et){EDIT={tier:+b.dataset.et,g:0};renderControls();return;}
   else if(b.dataset.eg){EDIT.g=+b.dataset.eg;renderControls();return;}
   else if(b.dataset.link){relink(EDIT.tier,b.dataset.link);}
-  else if(b.dataset.corner){P.zt[EDIT.tier].corners=b.dataset.corner;}
+  else if(b.dataset.corner){P.zt.forEach(t=>t.corners=b.dataset.corner);}
   else if(b.dataset.meet){const [rt,m]=b.dataset.meet.split(':');meetAllC(m,rt);return;}
   else if(b.id==='fit'){const ok=fitCapacity(P);toast(ok?'Rows sized to hit the target':'Target is out of reach within 80 rows per tier. Add a tier.');}
   else if(b.id==='reset'){P=defaultsPinned();EDIT={tier:0,g:0};}

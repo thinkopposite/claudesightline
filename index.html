@@ -116,6 +116,8 @@ a.btnlink:hover{border-color:var(--ink)}
 .eyes input:disabled{opacity:.75;cursor:not-allowed}
 .eyes #eyeLock.on{background:#D40000;border-color:#D40000;color:#fff}
 .fixed{width:100%;border-collapse:collapse;font-size:12.5px}.fixed td{padding:3px 0;border-bottom:1px solid var(--line)}.fixed td+td{text-align:right;font-weight:600}
+.rng{display:flex;align-items:center;gap:4px}.rng input[type=range]{flex:1;min-width:0}
+.nudge{padding:0 6px;min-width:22px;height:22px;font-size:10px;line-height:1;border-radius:4px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:9px 16px;border-radius:4px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.show{opacity:1}
 @media (max-width:900px){.layout{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}.cols{grid-template-columns:1fr}main{padding:14px}}
@@ -604,11 +606,12 @@ const zoneKeys=P=>zoned(P)?GEO:['T'];
 function compassOf(P){const i=Math.max(0,GEO.indexOf(P.north)),m={};for(let k=0;k<4;k++)m[GEO[(i+k)%4]]='NESW'[k];return m;}
 function zoneName(P,k,short){if(!zoned(P))return short?'All':'All around';const c=compassOf(P)[k];
   return isSide(k)?(short?c:`${CW[c]} sideline`):(short?c+'EZ':`${CW[c]} end zone`);}
-const LINKS={all:'All four match',pairs:'Sidelines & ends',none:'Each side'};
-function groups(P,ti){if(!zoned(P))return [['T']];const l=P.zt[ti].link;return l==='all'?[['T','R','B','L']]:l==='pairs'?[['T','B'],['R','L']]:GEO.map(k=>[k]);}
+const LINKS={all:'All four sides match',none:'Each side'};
+function groups(P,ti){if(!zoned(P))return [['T']];const l=P.zt[ti].link;return l==='all'?[['T','R','B','L']]:GEO.map(k=>[k]);}
 function groupName(P,ti,g){if(!zoned(P))return 'All around';if(g.length===4)return 'All four sides';
   if(g.length===2)return (isSide(g[0])?'Sidelines ':'End zones ')+'('+g.map(k=>zoneName(P,k,true)).join(', ')+')';return zoneName(P,g[0]);}
-function zp(o){return Object.assign({on:true,rows:20,seat:'standard',riser:'parabolic',basis:'sit',tread:34*25.4,tread0:36*25.4,treadN:34*25.4,seatW:22*25.4,target:2.5*25.4,D:40*0.3048,Z:5*0.3048,X:null,gap:2.4,rise:3.048,suites:0},o);}
+const PER_SIDE=['seat','seatW','D'];                                   // seat type, seat width and depth stay per side
+function zp(o){return Object.assign({on:true,rows:20,seat:'standard',riser:'parabolic',basis:'sit',tread:34*25.4,tread0:36*25.4,treadN:34*25.4,seatW:22*25.4,target:2.25*25.4,D:35*0.3048,Z:8*0.3048,X:null,gap:2.4,rise:3.048,suites:0},o);}
 function tierDef(rows,link,o={}){return {link,corners:'auto',z:Object.fromEntries(GEO.map(k=>[k,zp(Object.assign({rows},o))]))};}
 // Eye points from the reference sections (heights above the tread the spectator is on):
 // chairback: sitting 3'-8" directly over the back riser; standing 5'-3 1/2", 1'-6" forward of the sitting eye.
@@ -622,9 +625,10 @@ const isBench=seat=>seat==='bench';
 function eyeAt(P,seat,T,mode){const e=P.eye;return mode==='stand'?[e.stOff,e.stH]:[T,e.sitH];}
 function defaults(){const S=SPORTS.ncaafb,f={};
   return {sport:'ncaafb',L:S.L,W:S.W,lanes:8,fl:330*FT,cf:400*FT,bs:60*FT,north:'L',planOri:'v',sec:'T',tierCount:2,
-  zt:[tierDef(20,'pairs',f),tierDef(20,'pairs',f),tierDef(20,'pairs',f)].map(t=>{['L','R'].forEach(k=>t.z[k].D=30*0.3048);return t;}),
-  eye:eyeDefaults(),eyeRev:EYE_REV,eyeMode:'sit',slabT:6*25.4,step:12.7,maxRiser:24*25.4,bank:1,maxRake:34,loss:12,vd:700*0.3048,capTarget:30000,railH:27*25.4,minHead:10*304.8,suiteH:4.27};}
-function defaultsPinned(){const d=defaults();pinUpperTiers(d);return d;}
+  zt:[tierDef(20,'all',f),tierDef(20,'all',f),tierDef(20,'all',f)].map(t=>{t.corners='chamfer';                 // E/W chairback, N/S bench
+    ['T','B'].forEach(k=>Object.assign(t.z[k],{seat:'standard',seatW:22*25.4}));['L','R'].forEach(k=>Object.assign(t.z[k],{seat:'bench',seatW:18*25.4}));return t;}),
+  eye:eyeDefaults(),eyeRev:EYE_REV,eyeMode:'sit',slabT:5*25.4,step:12.7,maxRiser:24*25.4,bank:1,maxRake:34,loss:12,vd:700*0.3048,capTarget:30000,railH:27*25.4,minHead:10*304.8,suiteH:4.27};}
+function defaultsPinned(){const d=defaults();alignUpperTiers(d);return d;}
 // Saved bowls from before zones: one profile for the whole bowl becomes the same profile on every side.
 function migrate(o){if(!o||o.zt)return o;const d=defaults();
   d.zt.forEach((t,i)=>{const lt=(o.tiers||[])[i]||{};GEO.forEach(k=>Object.assign(t.z[k],{rows:lt.rows??t.z[k].rows,gap:lt.gap??t.z[k].gap,rise:lt.rise??t.z[k].rise,
@@ -696,6 +700,8 @@ function pinUpperTiers(P){const Q=Object.assign({},P,{tierCount:3});
 function gapsOf(P){const Q=Object.assign({},P,{tierCount:3}),g={};
   for(const k of GEO){const zr=solveZone(Q,k);g[k]=[];for(let ti=1;ti<3;ti++){const lo=zr.filter(r=>r.tier===ti-1),up=zr.find(r=>r.tier===ti);
     g[k][ti]=lo.length&&up?(up.x-(lo[lo.length-1].x+lo[lo.length-1].T))/1000:P.zt[ti].z[k].gap;}}return g;}
+function alignUpperTiers(P){const Q=Object.assign({},P,{tierCount:3});
+  for(const k of GEO)for(let ti=1;ti<3;ti++){const zr=solveZone(Q,k),lo=zr.filter(r=>r.tier===ti-1);if(lo.length)P.zt[ti].z[k].X=lo[lo.length-1].x/1000;}}
 function keepGaps(P,g){for(let ti=1;ti<3;ti++)for(const k of GEO)Object.assign(P.zt[ti].z[k],{X:null,gap:g[k][ti]});pinUpperTiers(P);}
 function fixP(P){if(!SPORTS[P.sport])P.sport=LEGACY_SPORT[P.sport]||'fifa';const d=defaults();
   if(P.eyeRev!==EYE_REV){P.eye=eyeDefaults();P.eyeRev=EYE_REV;}P.eye=Object.assign(eyeDefaults(),P.eye||{});delete P.eye.bnFront;if(P.eyeMode!=='stand')P.eyeMode='sit';
@@ -704,7 +710,7 @@ function fixP(P){if(!SPORTS[P.sport])P.sport=LEGACY_SPORT[P.sport]||'fifa';const
   Object.assign(P,{step:12.7,maxRiser:24*25.4,bank:1,railH:27*25.4,minHead:10*304.8});             // fixed values
   if(P.sport==='nfl'||P.sport==='ncaafb')Object.assign(P,{L:360*0.3048,W:160*0.3048});           // football field 360 ft x 160 ftif(!GEO.includes(P.sec))P.sec='T';
   if(!Array.isArray(P.zt)||P.zt.length<3)P.zt=d.zt;
-  P.zt.forEach((t,i)=>{if(!LINKS[t.link])t.link=i?'pairs':'all';if(t.corners!=='open')t.corners='auto';GEO.forEach(k=>{const o=t.z[k]||{};if(o.tread0==null)o.tread0=o.tread;if(o.treadN==null)o.treadN=o.tread;if(!SEATS[o.seat])o.seat='standard';o.suites=0;t.z[k]=zp(o);});});
+  P.zt.forEach((t,i)=>{if(!LINKS[t.link])t.link='none';if(t.corners==='auto')t.corners='round';if(!['chamfer','round','open'].includes(t.corners))t.corners='chamfer';GEO.forEach(k=>{const o=t.z[k]||{};if(o.tread0==null)o.tread0=o.tread;if(o.treadN==null)o.treadN=o.tread;if(!SEATS[o.seat])o.seat='standard';o.suites=0;t.z[k]=zp(o);});});
   pinUpperTiers(P);return P;}
 function status(r){if(r.railC!=null)return r.railC>=0?'pass':'fail';if(r.C==null)return'front';
   if(r.C>=r.target-0.05)return'pass';if(r.C>=r.target*2/3)return'reduced';return'fail';}
@@ -714,25 +720,41 @@ function rectGeo(P){const S=SPORTS[P.sport],a=P.L/2,b=P.W/2,R=S.shape==='rrect'?
     corner:{T:{c:[a-R,-b+R],a0:-90},R:{c:[a-R,b-R],a0:0},B:{c:[-a+R,b-R],a0:90},L:{c:[-a+R,-b+R],a0:180}}};}   // corner[k] follows side k
 const sameProfile=(A,B)=>A.length===B.length&&A.every((r,i)=>Math.abs(r.x-B[i].x)<0.5&&Math.abs(r.z-B[i].z)<0.5&&r.T===B[i].T);
 // A corner wraps when both neighbours have seats on that tier with identical rows; otherwise it is left open.
-function cornerWraps(P,ZR,ti,k){const nk=GEO[(GEO.indexOf(k)+1)%4];if(P.zt[ti].corners==='open')return false;
-  const a=ZR[k].filter(r=>r.tier===ti),b=ZR[nk].filter(r=>r.tier===ti);return a.length>0&&sameProfile(a,b);}
-// Chain of pieces each zone's stand is swept along: half of each wrapped corner, then the side, then half the next corner.
+// Corner type between side k and the next side: chamfered or round when both stands have seats on that tier with identical rows;
+// otherwise, or when set to open, the corner is open.
+function cornerKind(P,ZR,ti,k){const nk=GEO[(GEO.indexOf(k)+1)%4],mode=P.zt[ti].corners;if(mode==='open')return 'open';
+  const a=ZR[k].filter(r=>r.tier===ti),b=ZR[nk].filter(r=>r.tier===ti);return a.length>0&&sameProfile(a,b)?mode:'open';}
+const cornerWraps=(P,ZR,ti,k)=>cornerKind(P,ZR,ti,k)!=='open';
+// Chain of pieces each stand is swept along. Round: half of the corner arc each side. Chamfered: half of the straight corner
+// each side (CHAM, from a side end to the corner's mid-line). Open: the end-zone stand runs on to the front row of the sideline
+// stand, so the sideline and end-zone stands stay straight and the corner between them is left open.
 function chains(P,ZR){
   const out=[];
   for(let ti=0;ti<P.tierCount;ti++){const c={};
     if(!zoned(P)){if(ZR.T.some(r=>r.tier===ti))c.T='ring';out.push(c);continue;}
-    const G=rectGeo(P);
-    GEO.forEach((k,i)=>{if(!ZR[k].some(r=>r.tier===ti))return;const pk=GEO[(i+3)%4],ch=[];
-      if(cornerWraps(P,ZR,ti,pk)){const C=G.corner[pk];ch.push({t:'ARC',c:C.c,r:G.R,a0:C.a0+45,sw:45});}
-      const s=G.side[k];if(Math.hypot(s.q[0]-s.p[0],s.q[1]-s.p[1])>0.005)ch.push({t:'LINE',p:s.p,q:s.q,n:s.n});
-      if(cornerWraps(P,ZR,ti,k)){const C=G.corner[k];ch.push({t:'ARC',c:C.c,r:G.R,a0:C.a0,sw:45});}
+    const G=rectGeo(P),front=k=>{const r=ZR[k].find(r=>r.tier===ti);return r?r.x/1000:0;};
+    const cham=(k,first)=>{const nk=GEO[(GEO.indexOf(k)+1)%4],s1=G.side[k],s2=G.side[nk],c1=s1.q,c2=s2.p,n1=s1.n,n2=s2.n;
+      const mid=[(c1[0]+c2[0])/2,(c1[1]+c2[1])/2],m=[(n1[0]+n2[0])/2,(n1[1]+n2[1])/2];
+      return first?{t:'CHAM',a:c1,na:n1,b:mid,nb:m}:{t:'CHAM',a:mid,na:m,b:c2,nb:n2};};
+    GEO.forEach((k,i)=>{if(!ZR[k].some(r=>r.tier===ti))return;const pk=GEO[(i+3)%4],ch=[],kp=cornerKind(P,ZR,ti,pk),kn=cornerKind(P,ZR,ti,k);
+      if(kp==='round'){const C=G.corner[pk];ch.push({t:'ARC',c:C.c,r:G.R,a0:C.a0+45,sw:45});}
+      if(kp==='chamfer')ch.push(cham(pk,false));
+      const s=G.side[k];let p=s.p.slice(),q=s.q.slice();
+      if(!isSide(k)){const u=[(q[0]-p[0]),(q[1]-p[1])],ul=Math.hypot(u[0],u[1]);u[0]/=ul;u[1]/=ul;   // open: end zone reaches the sideline front row
+        if(kp==='open'){const e=G.R+front(pk);p=[p[0]-u[0]*e,p[1]-u[1]*e];}
+        if(kn==='open'){const e=G.R+front(GEO[(i+1)%4]);q=[q[0]+u[0]*e,q[1]+u[1]*e];}}
+      if(Math.hypot(q[0]-p[0],q[1]-p[1])>0.005)ch.push({t:'LINE',p,q,n:s.n});
+      if(kn==='round'){const C=G.corner[k];ch.push({t:'ARC',c:C.c,r:G.R,a0:C.a0,sw:45});}
+      if(kn==='chamfer')ch.push(cham(k,true));
       c[k]=ch;});
     out.push(c);}
   return out;
 }
-function chainLen(ch,d){return ch.reduce((s,g)=>s+(g.t==='LINE'?Math.hypot(g.q[0]-g.p[0],g.q[1]-g.p[1]):(g.r+d)*g.sw*Math.PI/180),0);}
+function chainLen(ch,d){return ch.reduce((s,g)=>s+(g.t==='LINE'?Math.hypot(g.q[0]-g.p[0],g.q[1]-g.p[1])
+  :g.t==='CHAM'?Math.hypot(g.b[0]+g.nb[0]*d-g.a[0]-g.na[0]*d,g.b[1]+g.nb[1]*d-g.a[1]-g.na[1]*d):(g.r+d)*g.sw*Math.PI/180),0);}
 function chainStations(ch){const st=[];
   for(const g of ch){if(g.t==='LINE'){st.push([g.p[0],g.p[1],g.n[0],g.n[1]],[g.q[0],g.q[1],g.n[0],g.n[1]]);continue;}
+    if(g.t==='CHAM'){st.push([g.a[0],g.a[1],g.na[0],g.na[1]],[g.b[0],g.b[1],g.nb[0],g.nb[1]]);continue;}   // straight between offsets
     const m=Math.max(1,Math.ceil(g.sw/7.5));for(let j=0;j<=m;j++){const t=(g.a0+g.sw*j/m)*Math.PI/180,c=Math.cos(t),s=Math.sin(t);st.push([g.c[0]+g.r*c,g.c[1]+g.r*s,c,s]);}}
   return st.filter((q,i)=>!i||Math.hypot(q[0]-st[i-1][0],q[1]-st[i-1][1])>1e-9||Math.abs(q[2]-st[i-1][2])>1e-9||Math.abs(q[3]-st[i-1][3])>1e-9);}
 function seatLen(P,CH,r){const d=(r.x+r.T/2)/1000,ch=CH[r.tier][r.zone];
@@ -812,14 +834,24 @@ function focalPath(P){
 // counter-clockwise with the outward side on the right, the convention the Dynamo graph uses.
 function bowlPieces(P,ZR,CH){const out=[],k=1000;
   CH.forEach((c,ti)=>{for(const z of Object.keys(c)){const ch=c[z];
-    const segs=ch==='ring'?focalPath(P):ch.slice().reverse().map(g=>g.t==='LINE'?{t:'LINE',x1:g.q[0]*k,y1:-g.q[1]*k,x2:g.p[0]*k,y2:-g.p[1]*k}
+    const segs=ch==='ring'?focalPath(P):ch.slice().reverse().filter(g=>g.t!=='CHAM').map(g=>g.t==='LINE'?{t:'LINE',x1:g.q[0]*k,y1:-g.q[1]*k,x2:g.p[0]*k,y2:-g.p[1]*k}
       :(a=>{while(a<=-180)a+=360;while(a>180)a-=360;return {t:'ARC',cx:g.c[0]*k,cy:-g.c[1]*k,r:g.r*k,a0:a,sw:g.sw};})(-(g.a0+g.sw)));
     segs.forEach(g=>out.push(Object.assign({tier:ti,zone:z},g)));}});
+  return out;}
+// Chamfered corners for Revit: each half corner as vertical plates (tread plates, riser plates, leg wall) whose plan outline runs
+// straight between the two offset lines; the union matches the stepped profile. Plan mm with Y up; Z mm above the pitch.
+function cornerPlates(P,ZR,CH){const out=[],t=slabT(),k=1000;
+  CH.forEach((c,ti)=>{for(const z of Object.keys(c)){if(c[z]==='ring')continue;const tr=ZR[z].filter(r=>r.tier===ti);if(!tr.length)continue;
+    const bands=[];tr.forEach((r,i)=>{bands.push([r.x,r.x+r.T,r.z-t,r.z]);if(i)bands.push([r.x,r.x+t,tr[i-1].z-t,r.z]);});
+    if(ti===0&&tr[0].z-t>1)bands.push([tr[0].x,tr[0].x+t,0,tr[0].z-t]);
+    for(const g of c[z]){if(g.t!=='CHAM')continue;
+      for(const [xa,xb,z0,z1] of bands){const P4=[[g.a,g.na,xa],[g.a,g.na,xb],[g.b,g.nb,xb],[g.b,g.nb,xa]].map(([o,n,x])=>[(o[0]+n[0]*x/1000)*k,-(o[1]+n[1]*x/1000)*k]);
+        out.push({tier:ti,zone:z,pts:P4,z0:Math.max(0,z0),z1});}}}});
   return out;}
 function fitCapacity(P){
   const base=[];P.zt.slice(0,P.tierCount).forEach(t=>GEO.forEach(k=>base.push([t.z[k],t.z[k].rows])));let lo=0.1,hi=6;
   let apply=f=>base.forEach(([z,b])=>z.rows=Math.max(3,Math.min(80,Math.round(b*f))));
-  const g=gapsOf(P),a0=apply;apply=f=>{a0(f);keepGaps(P,g);};                 // upper tiers move with the tier below while fitting
+  const a0=apply;apply=f=>{a0(f);alignUpperTiers(P);};                          // upper tier bottom riser over the top riser below
   const cap=()=>{const ZR=solveAll(P);return metrics(P,ZR,chains(P,ZR)).cap;};
   for(let it=0;it<40;it++){const f=(lo+hi)/2;apply(f);if(cap()>=P.capTarget)hi=f;else lo=f;}
   apply(hi);return cap()>=P.capTarget;
@@ -866,12 +898,12 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.29';
+const VERSION='2026.09.27.30';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
 // When the defaults change (DREV goes up), each browser starts once from the new default bowl; saved options are kept.
-const DREV=7;let NEWDEF=false;
+const DREV=8;let NEWDEF=false;
 try{if((+localStorage.getItem('sightline-defaults-rev')||0)<DREV){NEWDEF=!!P;P=null;localStorage.setItem('sightline-defaults-rev',String(DREV));localStorage.setItem('sightline-units',JSON.stringify({sys:'imperial',metric:'mm',imperial:'ftin-frac'}));}}catch(e){}
 if(!P)P=defaultsPinned();
 const $=id=>document.getElementById(id);
@@ -961,7 +993,7 @@ function slider(path,label,min,max,step,unit){
   const box=kind?`<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" class="len" id="n_${path}" data-p="${path}" value="${fieldText(v*(kind==='m'?1000:1),kind,step).replace(/"/g,'&quot;')}">${unitLabel(kind)}`
     :`<input type="number" id="n_${path}" data-p="${path}" min="${min}" max="${max}" step="${step}" value="${v}">${unit}`;
   return `<div class="sl"><div class="sl-top"><label for="n_${path}">${label}</label><span class="sl-val">${box}</span></div>
-  <input type="range" data-p="${path}" min="${min}" max="${max}" step="${step}" value="${v}" aria-label="${label}"></div>`;
+  <div class="rng"><button class="nudge" data-nudge="-1" data-np="${path}" aria-label="${label}: down one step">◀</button><input type="range" data-p="${path}" min="${min}" max="${max}" step="${step}" value="${v}" aria-label="${label}"><button class="nudge" data-nudge="1" data-np="${path}" aria-label="${label}: up one step">▶</button></div></div>`;
 }
 function fieldSliders(){const S=SPORTS[P.sport];
   if(S.shape==='fan')return slider('fl','Foul lines, home to pole',90,115,0.01,'m')+slider('cf','Centre field, home to fence',110,135,0.01,'m')+slider('bs','Backstop behind home plate',12,30,0.01,'m');
@@ -980,14 +1012,20 @@ function zoneEditor(ti,g){
   const z=P.zt[ti].z[g[0]],pre=`zt.${ti}.${g.join('')}`;let h='';
   h+=`<div class="seg" style="margin:10px 0 2px"><button data-on="${pre}" class="${z.on?'on':''}" aria-pressed="${z.on}">${z.on?'Seats on':'Open (no seats)'}</button></div>`;
   if(!z.on)return h+`<p class="hint">No seats here${ti<2?'; tiers above on this side are open too':''}.</p>`;
-  h+='<div class="seg" style="margin:8px 0 0">'+Object.entries(SEATS).map(([k,s])=>`<button data-seat="${k}" data-g="${pre}" class="${z.seat===k?'on':''}">${s.name}</button>`).join('')+'</div>';
+  const seatBlock=(keys,title)=>{const zz=P.zt[ti].z[keys[0]],pp=`zt.${ti}.${keys.join('')}`;
+    return (title?`<div class="lab">${title}</div>`:'')+'<div class="seg" style="margin:6px 0 0">'+Object.entries(SEATS).map(([k,s])=>`<button data-seat="${k}" data-g="${pp}" class="${zz.seat===k?'on':''}">${s.name}</button>`).join('')+'</div>'
+      +slider(pp+'.seatW',`${(SEATS[zz.seat]||SEATS.standard).name} seat width (1 inch)`,14*25.4,30*25.4,25.4,'mm');};
+  const all4=g.length===4;
+  h+=all4?seatBlock(['T','B'],'East and West sidelines')+seatBlock(['L','R'],'North and South end zones'):seatBlock(g,'');
   h+='<div class="lab">Riser</div><div class="seg">'+[['parabolic','Parabolic riser'],['constant','Constant riser']].map(([k,n])=>`<button data-riser="${k}" data-g="${pre}" class="${(z.riser||'parabolic')===k?'on':''}">${n}</button>`).join('')+'</div>'
     +`<p class="hint">${z.riser==='constant'?`One riser for every row: the smallest ${L(P.step)} step that meets the C-value, up to the ${L(P.maxRiser)} maximum.`:`Each riser sized to meet the C-value, in ${L(P.step)} steps.`} Sized for ${BASIS[z.basis]||'sitting'} spectators.</p>`;
-  const sw=isBench(z.seat)?'Bench seat width (1 inch)':'Chairback seat width (1 inch)';
   h+=slider(pre+'.rows','Rows (1 row)',3,80,1,'rows')+slider(pre+'.tread','Typical row depth (1 inch)',24*25.4,52*25.4,25.4,'mm')
     +slider(pre+'.tread0','Bottom row depth (1 inch)',24*25.4,60*25.4,25.4,'mm')+slider(pre+'.treadN','Top row depth (1 inch)',24*25.4,60*25.4,25.4,'mm')
-    +slider(pre+'.seatW',sw,14*25.4,30*25.4,25.4,'mm')+slider(pre+'.target','Target C-value (1/4 inch)',2.5*25.4,6*25.4,0.25*25.4,'mm');
-  if(ti===0)h+=slider(pre+'.D','Lowest riser from point of focus (buffer) (6 inch)',2*0.3048,100*0.3048,0.1524,'m')+slider(pre+'.Z','First row above pitch (6 inch)',1*0.3048,20*0.3048,0.1524,'m');
+    +slider(pre+'.target','Absolute minimum C-value (1/4 inch)',2.25*25.4,6*25.4,0.25*25.4,'mm');
+  const dep=(p,lab)=>slider(p,lab,10*0.3048,150*0.3048,0.3048,'m');
+  if(ti===0)h+=(all4?dep(`zt.0.TB.D`,'East west sideline depth (1 foot)')+dep(`zt.0.LR.D`,'North south end zone depth (1 foot)')
+      :dep(pre+'.D',isSide(g[0])?'Sideline depth (1 foot)':'End zone depth (1 foot)'))
+    +slider(pre+'.Z','First row above pitch (6 inch)',1*0.3048,20*0.3048,0.1524,'m');
   else h+=slider(pre+'.X','Lowest riser from point of focus (6 inch)',10*0.3048,400*0.3048,0.1524,'m')+`<p class="hint" id="sbHint">${setbackText(ti,g[0])}</p>`
     +slider(pre+'.rise',`Rise from ${ti===1?'main':'upper'} concourse to lower landing (1 inch)`,0,15,0.0254,'m');
   h+=`<button data-zreset="${pre}" style="margin-top:10px">Reset</button>`;
@@ -1007,7 +1045,7 @@ function renderControls(){
   h+='<div class="tier">';
   if(zoned(P)){
     h+='<div class="lab">Side profiles</div><div class="seg">'+Object.entries(LINKS).map(([k,n])=>`<button data-link="${k}" class="${T.link===k?'on':''}">${n}</button>`).join('')+'</div>';
-    h+='<div class="lab">Corners</div><div class="seg">'+[['auto','Wrap where sides match'],['open','Open']].map(([k,n])=>`<button data-corner="${k}" class="${T.corners===k?'on':''}">${n}</button>`).join('')+'</div>';}
+    h+='<div class="lab">Corners</div><div class="seg">'+[['chamfer','Chamfered corner'],['round','Round corner'],['open','Open corner']].map(([k,n])=>`<button data-corner="${k}" class="${T.corners===k?'on':''}">${n}</button>`).join('')+'</div>';}
   const G=groups(P,ti);EDIT.g=Math.min(EDIT.g,G.length-1);
   if(G.length>1)h+='<div class="tabs sub" role="tablist">'+G.map((g,i)=>`<button role="tab" data-eg="${i}" class="${i===EDIT.g?'on':''}" aria-selected="${i===EDIT.g}">${groupName(P,ti,g).replace(/ \(.*\)/,'')}</button>`).join('')+'</div>';
   h+=`<p class="zhead">${groupName(P,ti,G[EDIT.g])}</p>`+zoneEditor(ti,G[EDIT.g])+'</div>';
@@ -1025,7 +1063,7 @@ function renderControls(){
     +'<div class="seg" style="margin-top:10px"><button id="advReset">Reset</button><button id="reset">Reset all</button></div></details>';
   const c=$('controls'), open=c.querySelector('details')?.open;
   c.innerHTML=h; if(open)c.querySelector('details').open=true;
-  c.querySelectorAll('.eyes input').forEach(i=>{i.disabled=EYELOCK;i.title=EYELOCK?'Unlock to change':'';});
+  c.querySelectorAll('.eyes input,.eyes .nudge').forEach(i=>{i.disabled=EYELOCK;i.title=EYELOCK?'Unlock to change':'';});
 }
 function syncField(p,el){const mt=META[p],v=get(p);
   document.querySelectorAll(`[data-p="${p}"]`).forEach(x=>{if(x===el)return;
@@ -1051,12 +1089,13 @@ $('controls').addEventListener('keydown',e=>{if(e.key==='Escape'&&e.target.class
 function markSeat(pre){const t=get(pre+'.tread'),w=get(pre+'.seatW'),s=Object.keys(SEATS).find(k=>Math.abs(SEATS[k].tread-t)<0.01&&Math.abs(SEATS[k].seatW-w)<0.01)||'custom';set(pre+'.seat',s);
   document.querySelectorAll(`[data-seat][data-g="${pre}"]`).forEach(b=>b.classList.toggle('on',b.dataset.seat===s));}
 function relink(ti,link){const t=P.zt[ti];t.link=link;
-  const copy=(from,to)=>to.forEach(k=>{if(k!==from)t.z[k]=JSON.parse(JSON.stringify(t.z[from]));});
-  if(link==='all')copy('T',GEO);else if(link==='pairs'){copy('T',['B']);copy('R',['L']);}EDIT.g=0;}
+  if(link==='all')GEO.forEach(k=>{if(k==='T')return;const keep={};PER_SIDE.forEach(p=>keep[p]=t.z[k][p]);t.z[k]=Object.assign(JSON.parse(JSON.stringify(t.z.T)),keep);});EDIT.g=0;}
 $('controls').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.seat){const s=SEATS[b.dataset.seat],pre=b.dataset.g;set(pre+'.seat',b.dataset.seat);set(pre+'.seatW',s.seatW);}
   else if(b.dataset.riser){set(b.dataset.g+'.riser',b.dataset.riser);}
+  else if(b.dataset.nudge){const p=b.dataset.np,mt=META[p];let v=get(p)+(+b.dataset.nudge)*mt.step;
+    v=Math.min(mt.max,Math.max(mt.min,mt.min+Math.round((v-mt.min)/mt.step)*mt.step));commit(p,Math.round(v*1e6)/1e6,null);return;}
   else if(b.dataset.zreset){const [,ti,ks]=b.dataset.zreset.split('.'),d=defaults().zt[+ti];for(const k of ks){const keep={X:P.zt[+ti].z[k].X};Object.assign(P.zt[+ti].z[k],d.z[k],+ti?keep:{});}
     if(+ti)for(const k of ks)P.zt[+ti].z[k].X=null;pinUpperTiers(P);toast('Stand values reset to the defaults.');}
   else if(b.id==='advReset'){const d=defaults();Object.assign(P,{maxRake:d.maxRake,vd:d.vd,loss:d.loss});toast('Advanced values reset to the defaults.');}
@@ -1385,6 +1424,10 @@ $('exRevit').onclick=()=>{
   add([['Piece','Tier','Zone','Profile sheet','Type','X1 (mm)','Y1 (mm)','X2 (mm)','Y2 (mm)','CX (mm)','CY (mm)','R (mm)','Start (deg)','Sweep (deg)'],
     ...bowlPieces(P,ZR,CH).map((g,i)=>[i+1,g.tier+1,zoneName(P,g.zone,true),profSheet(g.tier,g.zone),...geo(g)]),
     [],['Plan mm, Y up, origin at the field centre at pitch level. Each stand runs counter-clockwise with the seats on its right. LINE: extrude the profile along it. ARC: revolve the profile about a vertical axis at CX, CY (R 0 is a sharp corner). Angles are the outward normal. A gap between stands is an open corner.']],'Bowl pieces');
+  const cp=cornerPlates(P,ZR,CH);
+  if(cp.length)add([['Plate','Tier','Zone','X1 (mm)','Y1 (mm)','X2 (mm)','Y2 (mm)','X3 (mm)','Y3 (mm)','X4 (mm)','Y4 (mm)','Z bottom (mm)','Z top (mm)'],
+    ...cp.map((c,i)=>[i+1,c.tier+1,zoneName(P,c.zone,true),...c.pts.flat().map(r1),r1(c.z0),r1(c.z1)]),
+    [],['Chamfered corners: each plate is its plan outline (plan mm, Y up) extruded straight up from Z bottom to Z top. Together they form the stepped tread and riser slab around the corner.']],'Corner plates');
   add([['Seg','Type','X1 (mm)','Y1 (mm)','X2 (mm)','Y2 (mm)','CX (mm)','CY (mm)','R (mm)','Start (deg)','Sweep (deg)'],...focalPath(P).map((g,i)=>[i+1,...geo(g)]),
     [],['The point-of-focus boundary, counter-clockwise, same coordinates as Bowl pieces.']],'Focal path');
   add([['Tier','Zone','Row','Riser from focus (mm)','Tread height (mm)','Tread (mm)','Seat width (mm)','Riser (mm)','Rake (deg)','C-value (mm)','Guard clearance (mm)'],

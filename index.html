@@ -905,7 +905,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.32';
+const VERSION='2026.09.27.33';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1127,8 +1127,8 @@ const COL={pass:'var(--pass)',reduced:'var(--warn)',fail:'var(--fail)',front:'va
 function drawSection(rows,o={}){
   if(!rows.length)return '<p class="empty" style="padding:16px">No seats on this side.</p>';
   const maxX=Math.max(...rows.map(r=>r.x+r.T)),maxZ=Math.max(...rows.map(r=>Math.max(r.sit.ez,r.stand.ez)));
-  const X1=maxX+2500,X0=Math.min(-6000,rows[0].x-10000,-0.09*(X1+6000)),W=X1-X0,fs=o.fs||W/80,dot=o.fs?fs*.16:W/450;
-  const nT=new Set(rows.map(r=>r.tier)).size,band=36*25.4,Z0=-(band+fs*2.4),Z1=maxZ+fs*(2.4+1.5*nT),H=Z1-Z0;   // 36 in bands below; a dimension per tier above the bowl
+  const X1=maxX+2500,X0=Math.min(-8000,rows[0].x-10000,-0.12*(X1+8000)),W=X1-X0,fs=o.fs||W/80,dot=o.fs?fs*.16:W/450;
+  const nT=new Set(rows.map(r=>r.tier)).size,band=36*25.4,Z0=-(band+fs*2.4),Z1=maxZ+fs*(3.9+1.5*nT),H=Z1-Z0;   // 36 in bands below; a dimension per tier and an overall one above the bowl
   const X=x=>(x-X0).toFixed(0),Y=z=>(Z1-z).toFixed(0);
   let s=`<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" role="img" aria-label="Bowl section with sightlines">`;
   const GS=imperial()?20*304.8:5000,gl=g=>imperial()?`${Math.round(g/304.8)}'`:fmode()==='m-dec'?`${Math.round(g/1000)} m`:fmode()==='cm'?`${EN(g/10)} cm`:`${EN(g)} mm`;
@@ -1179,6 +1179,16 @@ function chainDims(rows,tiers,X,Y,fs,band){
   s+=`<line x1="${f(xd)}" y1="${Y(vp[0].z)}" x2="${f(xd)}" y2="${Y(vp[vp.length-1].z)}" stroke="${c}" ${sw}/>`;
   for(let i=1;i<vp.length;i++){const ym=(+Y(vp[i-1].z)+ +Y(vp[i].z))/2,xl=xd-fs*.38;
     s+=`<text x="${f(xl)}" y="${f(ym)}" font-size="${f(fs*.54)}" fill="${c}" font-weight="650" text-anchor="middle" transform="rotate(-90 ${f(xl)} ${f(ym)})">${L(vp[i].z-vp[i-1].z)}</text>`;}
+  // overall: horizontal from the lowest riser of the lower bowl to the top riser of the top bowl, above the tier dimensions
+  const r0=firsts[0],rN=lasts[lasts.length-1],yo=+Y(zTop+fs*(1.6+1.5*firsts.length)),xm=(+X(r0.x)+ +X(rN.x))/2;
+  s+=ext(+X(r0.x),+Y(r0.z),+X(r0.x),yo-tk*1.4)+ext(+X(rN.x),+Y(rN.z),+X(rN.x),yo-tk*1.4)+tick(+X(r0.x),yo)+tick(+X(rN.x),yo)
+    +`<line x1="${X(r0.x)}" y1="${f(yo)}" x2="${X(rN.x)}" y2="${f(yo)}" stroke="${c}" ${sw}/>`
+    +`<text x="${f(xm)}" y="${f(yo-fs*.32)}" font-size="${f(fs*.6)}" fill="${c}" font-weight="700" text-anchor="middle">Overall: ${L(rN.x-r0.x)}</text>`;
+  // overall: vertical from the pitch to the top tread of the top bowl, outside the chain
+  const xo=xd-fs*1.5,ym=(+Y(0)+ +Y(rN.z))/2,xl=xo-fs*.38;
+  s+=ext(xd,+Y(0),xo-tk*1.4,+Y(0))+ext(xd,+Y(rN.z),xo-tk*1.4,+Y(rN.z))+tick(xo,+Y(0))+tick(xo,+Y(rN.z))
+    +`<line x1="${f(xo)}" y1="${Y(0)}" x2="${f(xo)}" y2="${Y(rN.z)}" stroke="${c}" ${sw}/>`
+    +`<text x="${f(xl)}" y="${f(ym)}" font-size="${f(fs*.6)}" fill="${c}" font-weight="700" text-anchor="middle" transform="rotate(-90 ${f(xl)} ${f(ym)})">Overall: ${L(rN.z)}</text>`;
   return s;
 }
 let PLAN='bowl',PLANROT=0;
@@ -1385,7 +1395,7 @@ function sectionSheet(key){
 function printSheet(key){
   const sh=sectionSheet(key);if(!sh){toast('This section does not fit the sheet at any standard scale.');return;}
   const root=(document.querySelector('style').textContent.match(/:root\{[^}]*\}/)||[''])[0];
-  const html=`<!doctype html><html><head><meta charset="utf-8"><title>Sightline Schematic - ${zoneName(P,P.sec)} - ${sh.paper.name}</title>
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${slug()}</title>
     <style>${root}@page{size:${sh.paper.w}in ${sh.paper.h}in;margin:0}html,body{margin:0;padding:0}svg{display:block}</style></head><body>${sh.svg}</body></html>`;
   let fr=document.getElementById('printFrame');if(fr)fr.remove();
   fr=document.createElement('iframe');fr.id='printFrame';fr.setAttribute('aria-hidden','true');
@@ -1399,7 +1409,7 @@ $('prTab').onclick=()=>printSheet('tabloid');
 
 // ---------- exports ----------
 const optName=()=>CUR!=null&&OPTS[CUR]?OPTS[CUR].name:'Current bowl';
-const slug=()=>('sightline-'+optName()).toLowerCase().replace(/[^a-z0-9]+/g,'-');
+const slug=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;};   // YYYYMMDD_hhmmss
 async function offer(filename,data){
   try{const url=URL.createObjectURL(data),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),4000);toast('Saved '+filename);}
@@ -1440,7 +1450,7 @@ $('exSku').onclick=()=>{
   const dae=buildDAE(P,ZR,CH),name=slug();
   const zip=new JSZip();zip.file(name+'.dae',dae);
   zip.file('How to open in SketchUp.txt','In SketchUp desktop: File > Import, choose COLLADA (*.dae), then pick '+name+'.dae.\nUnits are metres. Each stand (tier and side) imports as its own closed solid, with the pitch as a separate object.\nOpen corners are gaps between stands. Origin is the centre of the field extents, at field level.\n');
-  zip.generateAsync({type:'blob'}).then(b=>offer(name+'-sketchup.zip',b));
+  zip.generateAsync({type:'blob'}).then(b=>offer(name+'.zip',b));
 };
 
 // ---------- Title Case ----------
@@ -1467,7 +1477,7 @@ renderUnits();renderControls();update();titleize(document.body);
 if(NEWDEF)toast('Started from the new default bowl. Saved options are unchanged.');
 // saved options live in this browser; back them up to move between computers
 $('bkOpt').onclick=()=>{const d=new Date(),pad=n=>String(n).padStart(2,'0');
-  offer(`sightline-options-${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}.json`,new Blob([JSON.stringify({app:'Sightline Schematic',version:VERSION,P,OPTS},null,1)],{type:'application/json'}));};
+  offer(`${slug()}.json`,new Blob([JSON.stringify({app:'Sightline Schematic',version:VERSION,P,OPTS},null,1)],{type:'application/json'}));};
 $('rsOpt').onclick=()=>$('rsFile').click();
 $('rsFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
   try{const j=JSON.parse(await f.text());if(!Array.isArray(j.OPTS))throw 0;

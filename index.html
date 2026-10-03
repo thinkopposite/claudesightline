@@ -921,7 +921,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.38';
+const VERSION='2026.09.27.39';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1219,28 +1219,54 @@ let DETMODE='sit';
 const detEye=(r,m)=>m==='stand'?r.stand:r.sit;
 const Cf=v=>v==null?'':L(v).replace(/^(-?)0'-/,'$1').replace(/^(-?)0 (?=\D)/,'$1');                   // C-values in plain inches
 function rowC(rs,i,m){if(i===0||!rs[i]||!rs[i-1])return null;const e=detEye(rs[i],m),p=detEye(rs[i-1],m);return e.ez*p.ex/e.ex-p.ez;}   // C over the row in front
+// inches for detail labels: 14 ½", or mm in metric
+function inchText(v){if(!imperial())return `${Math.round(v)} mm`;const t=Math.round(v/25.4*16),w=Math.floor(t/16),f=t%16,
+  g={2:'⅛',4:'¼',6:'⅜',8:'½',10:'⅝',12:'¾',14:'⅞'}[f]||(f?`${f}/16`:'');return `${w}${g?' '+g:''}"`;}
 function drawDetail(all){
   const rs=all.filter(r=>r.tier===0);if(!rs.length)return '<p class="empty" style="padding:16px">No Tier 1 rows.</p>';
-  const IN=25.4,m=DETMODE,E=P.eye,hr=4.5*IN,headTop=4.45*IN,last=rs[rs.length-1];
-  const ey=rs.map(r=>{const e=detEye(r,m);return {x:e.ex,z:e.ez};});
-  const X0=rs[0].x-3200,X1=last.x+last.T+1600,Z0=Math.max(0,rs[0].z-900)-300,Z1=Math.max(...ey.map(e=>e.z))+hr*2+1400,W=X1-X0,H=Z1-Z0,fs=W/95;
-  const X=x=>(x-X0).toFixed(1),Y=z=>(Z1-z).toFixed(1),c='var(--dim)',tk=fs*.35;
-  const vdim=(x,z0,z1,lab)=>{const tx=+X(x)+fs*.55,ym=(+Y(z0)+ +Y(z1))/2;
-    return `<line x1="${X(x)}" y1="${Y(z0)}" x2="${X(x)}" y2="${Y(z1)}" stroke="${c}" stroke-width="0.9" vector-effect="non-scaling-stroke"/>`
-      +[z0,z1].map(z=>`<line x1="${(+X(x)-tk).toFixed(1)}" y1="${Y(z)}" x2="${(+X(x)+tk).toFixed(1)}" y2="${Y(z)}" stroke="${c}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`).join('')   // horizontal ticks
-      +`<text x="${tx.toFixed(1)}" y="${ym.toFixed(1)}" font-size="${(fs*.75).toFixed(1)}" fill="${c}" font-weight="700" text-anchor="middle" transform="rotate(-90 ${tx.toFixed(1)} ${ym.toFixed(1)})" paint-order="stroke" stroke="var(--panel)" stroke-width="${(fs*.2).toFixed(1)}">${lab}</text>`;};
+  const IN=25.4,m=DETMODE,E=P.eye,hr=4.5*IN,headTop=4.45*IN,r0=rs[0],last=rs[rs.length-1],band=36*IN;
+  const ey=rs.map(r=>{const e=detEye(r,m);return {x:e.ex,z:e.ez};}),Cs=rs.map((r,i)=>rowC(rs,i,m));
+  const cMin=Math.min(...Cs.filter(c=>c!=null));
+  const X1=last.x+last.T+3600,X0=-Math.max(4500,0.1*X1),W=X1-X0,fs=W/110;
+  const Z1=Math.max(...ey.map(e=>e.z))+hr*2+fs*2.5,Z0=-(band+fs*3.2),H=Z1-Z0;
+  const X=x=>(x-X0).toFixed(1),Y=z=>(Z1-z).toFixed(1),c='var(--dim)',tk=fs*.3,f1=v=>(+v).toFixed(1);
+  const tickH=(x,z)=>`<line x1="${f1(+X(x)-tk)}" y1="${Y(z)}" x2="${f1(+X(x)+tk)}" y2="${Y(z)}" stroke="${c}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`;
+  const tickV=(x,z)=>`<line x1="${X(x)}" y1="${f1(+Y(z)-tk)}" x2="${X(x)}" y2="${f1(+Y(z)+tk)}" stroke="${c}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`;
+  const ln=(x0,z0,x1,z1,w)=>`<line x1="${X(x0)}" y1="${Y(z0)}" x2="${X(x1)}" y2="${Y(z1)}" stroke="${c}" stroke-width="${w||0.9}" vector-effect="non-scaling-stroke"/>`;
+  const vdim=(x,z0,z1,lab)=>{const tx=+X(x)-fs*.45,ym=(+Y(z0)+ +Y(z1))/2;return ln(x,z0,x,z1)+tickH(x,z0)+tickH(x,z1)
+    +`<text x="${f1(tx)}" y="${f1(ym)}" font-size="${f1(fs*.7)}" fill="${c}" font-weight="600" text-anchor="middle" transform="rotate(-90 ${f1(tx)} ${f1(ym)})">${lab}</text>`;};
   let s=`<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" role="img" aria-label="Tier 1 sightline detail">`;
+  // pitch, buffer and the point-of-focus line
+  s+=`<rect x="0" y="${Y(0)}" width="${X(0)}" height="${band}" fill="var(--pitch)"/><rect x="${X(0)}" y="${Y(0)}" width="${f1(r0.x)}" height="${band}" fill="var(--grass2)"/>`
+    +`<text x="${f1(+X(0)/2)}" y="${f1(+Y(0)+band/2+fs*.25)}" font-size="${f1(fs*.65)}" fill="#fff" font-weight="600" text-anchor="middle">Pitch</text>`
+    +`<text x="${f1(+X(0)+r0.x/2)}" y="${f1(+Y(0)+band/2+fs*.25)}" font-size="${f1(fs*.65)}" fill="#fff" font-weight="600" text-anchor="middle">Buffer</text>`
+    +`<line x1="${X(0)}" y1="${f1(+Y(0)+band)}" x2="${X(0)}" y2="${f1(+Y(0)-fs*1.6)}" stroke="${FOCAL}" stroke-width="2.4" vector-effect="non-scaling-stroke"/><circle cx="${X(0)}" cy="${Y(0)}" r="${f1(fs*.22)}" fill="var(--ink)"/>`;
   s+=`<polygon points="${profileOf(rs,0).map(p=>X(p[0])+','+Y(p[1])).join(' ')}" fill="var(--concrete)" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
-  rs.forEach((r,i)=>{const e=ey[i],C=rowC(rs,i,m),ok=C==null||C>=r.target-0.05;
-    s+=`<line x1="${X(e.x)}" y1="${Y(e.z)}" x2="${X(X0)}" y2="${Y(e.z*X0/e.x)}" stroke="var(${ok?'--sl-ok':'--sl-low'})" stroke-width="0.7" vector-effect="non-scaling-stroke"/>`;});
-  rs.forEach((r,i)=>{const e=ey[i],cy=e.z+headTop-hr,C=rowC(rs,i,m),ok=C==null||C>=r.target-0.05;
-    s+=`<line x1="${X(e.x)}" y1="${Y(cy-hr)}" x2="${X(e.x)}" y2="${Y(r.z)}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>`   // body
+  // sightlines to the point of focus
+  rs.forEach((r,i)=>{const e=ey[i],C=Cs[i],ok=C==null||C>=r.target-0.05;
+    s+=`<line x1="${X(e.x)}" y1="${Y(e.z)}" x2="${X(0)}" y2="${Y(0)}" stroke="var(${ok?'--sl-ok':'--sl-low'})" stroke-width="0.6" opacity=".8" vector-effect="non-scaling-stroke"/>`;});
+  rs.forEach((r,i)=>{const e=ey[i],cy=e.z+headTop-hr,C=Cs[i],low=C!=null&&C<r.target-0.05,isMin=C!=null&&Math.abs(C-cMin)<1e-6;
+    // row number on the tread, riser height left of its riser
+    s+=`<text x="${X(r.x+(m==='stand'?4*IN:r.T*.17))}" y="${f1(+Y(r.z)-fs*.18)}" font-size="${f1(fs*.5)}" fill="var(--ink)" opacity=".8" font-weight="600" text-anchor="middle">${r.row}</text>`;
+    if(r.riser!=null)s+=`<text x="${f1(+X(r.x)-fs*.2)}" y="${f1(+Y(r.z-r.riser/2)+fs*.18)}" font-size="${f1(fs*.48)}" fill="var(--muted)" text-anchor="end">${inchText(r.riser)}</text>`;
+    s+=`<line x1="${X(e.x)}" y1="${Y(cy-hr)}" x2="${X(e.x)}" y2="${Y(r.z)}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>`
       +`<circle cx="${X(e.x)}" cy="${Y(cy)}" r="${hr}" fill="var(--panel)" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/>`
       +`<line x1="${X(e.x-3*IN)}" y1="${Y(e.z+2.25*IN)}" x2="${X(e.x+3*IN)}" y2="${Y(e.z+2.25*IN)}" stroke="#FF0000" stroke-width="0.8" vector-effect="non-scaling-stroke"/>`
-      +`<circle cx="${X(e.x)}" cy="${Y(e.z)}" r="${(fs*.13).toFixed(1)}" fill="var(${m==='stand'?'--eye-stand':'--eye-sit'})" stroke="var(--eye-sit)" stroke-width=".5" vector-effect="non-scaling-stroke"/>`
-      +(C==null?'':`<text x="${X(e.x)}" y="${(+Y(cy+hr)-fs*.35).toFixed(1)}" font-size="${(fs*.62).toFixed(1)}" fill="var(${ok?'--ink':'--sl-low'})" font-weight="700" text-anchor="middle">${Cf(C)}</text>`);});
-  const r0=rs[0],e0=ey[0];
-  s+=m==='stand'?vdim(e0.x+10*IN,r0.z,r0.z+E.stH+HEAD,`${L(E.stH+HEAD)} standing head height`):vdim(e0.x+8*IN,r0.z,e0.z,`${L(E.sitH)} sitting eye height`);
+      +`<circle cx="${X(e.x)}" cy="${Y(e.z)}" r="${f1(fs*.1)}" fill="var(${m==='stand'?'--eye-stand':'--eye-sit'})" stroke="var(--eye-sit)" stroke-width=".5" vector-effect="non-scaling-stroke"/>`;
+    // C-value to the right of the head, 4 decimals; the lowest in blue
+    if(C!=null)s+=`<text x="${X(e.x+hr+1.5*IN)}" y="${f1(+Y(cy)+fs*.2)}" font-size="${f1(fs*.55)}" fill="${low?'var(--sl-low)':isMin?'#0000FF':'var(--ink)'}" font-weight="${isMin?800:600}">${imperial()?(C/IN).toFixed(4)+'"':C.toFixed(2)+' mm'}</text>`;});
+  // eye height on the top spectator, right side, plain text
+  const eT=ey[ey.length-1],xd=eT.x+hr+1*IN,zTop=m==='stand'?last.z+E.stH+HEAD:eT.z,ym=(+Y(last.z)+ +Y(zTop))/2;
+  s+=ln(xd,last.z,xd,zTop)+tickH(xd,last.z)+tickH(xd,zTop)
+    +`<text x="${f1(+X(xd)+fs*.35)}" y="${f1(ym+fs*.2)}" font-size="${f1(fs*.55)}" fill="${c}">${m==='stand'?`${L(E.stH+HEAD)} standing head height`:`${L(E.sitH)} sitting eye height`}</text>`;
+  // vertical: bottom tread above the pitch (left of the leg wall); overall pitch to the top tread (left of the point of focus)
+  s+=vdim(r0.x-fs*.9,0,r0.z,L(r0.z));
+  s+=vdim(-fs*1.3,0,last.z,L(last.z));
+  // horizontal chain below the bowl: point of focus to the first riser, then the first and second treads
+  const yc=-(band+fs*1.3),pts=[0,r0.x,r0.x+r0.T,r0.x+r0.T+(rs[1]?rs[1].T:0)].filter((v,i,a)=>i===0||v>a[i-1]+1);
+  s+=ln(pts[0],yc,pts[pts.length-1],yc);
+  pts.forEach(x=>{s+=tickV(x,yc)+ln(x,0-band*(x===0?1:0)-(x===0?0:band),x,yc+tk*1.6,0.6);});
+  for(let i=1;i<pts.length;i++)s+=`<text x="${f1((+X(pts[i-1])+ +X(pts[i]))/2)}" y="${f1(+Y(yc)+fs*.85)}" font-size="${f1(fs*.6)}" fill="${c}" font-weight="600" text-anchor="middle">${L(pts[i]-pts[i-1])}</text>`;
   return s+'</svg>';
 }
 let PLAN='bowl',PLANROT=0;

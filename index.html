@@ -607,6 +607,25 @@ function drawDims(list,g,fs){
 }
 /*ENDSPORTS*/
 /*CORE*/
+// C-value guidance by sport, from C-Value_Standards_by_Sport.xlsx (US and International sheets). Default = Absolute Minimum;
+// buttons offer Absolute Minimum, Target and Premium. Status/basis as listed in the workbook.
+const CV_ROWS={
+  football:['American football (US)','Practice','No league standard; common practice',60,90,120],
+  basketball:['Basketball (US)','Practice','No league standard; arena practice',90,120,150],
+  baseball:['Baseball (US)','Practice','No league standard; common practice',60,90,120],
+  mls:['Soccer (MLS)','Practice','Follows FIFA min and ideal; premium from literature',90,120,150],
+  hockey:['Ice hockey (US)','Practice','No league standard; arena practice',90,120,150],
+  fifa:['Soccer (FIFA)','Published','FIFA min and ideal; premium from literature',90,120,150],
+  cricket:['Cricket','Published','Green Guide (UK) and Stadia literature',60,90,120],
+  fiba:['Basketball (FIBA)','Practice','No federation standard; arena practice',90,120,150],
+  tennis:['Tennis','Practice','No federation standard; general literature',60,90,120],
+  rugby:['Rugby','Published','Green Guide (UK) and Stadia literature',60,90,120],
+  athletics:['Athletics','Published','Green Guide (UK) and Stadia literature',60,90,120]};
+// app sports not in the workbook: WBSC -> baseball, FIH field hockey -> rugby (outdoor field), FIVB volleyball -> FIBA (indoor arena)
+const CV_SPORT={nfl:'football',ncaafb:'football',nba:'basketball',ncaabb:'basketball',mlb:'baseball',wbsc:'baseball',mls:'mls',nhl:'hockey',
+  fifa:'fifa',icc:'cricket',fiba:'fiba',fivb:'fiba',usta:'tennis',itf:'tennis',rugbyu:'rugby',rugbyl:'rugby',fih:'rugby',usatf:'athletics'};
+const CV_SETS=Object.fromEntries(Object.entries(CV_ROWS).map(([k,[n,st,basis,a,t,p]])=>[k,{src:`${n}: ${basis} (${st.toLowerCase()})`,opts:[['Absolute minimum',a],['Target',t],['Premium',p]]}]));
+const cvSet=sport=>CV_SETS[CV_SPORT[sport]]||CV_SETS.rugby,cvDefault=sport=>cvSet(sport).opts[0][1];
 const SEATS={standard:{name:'Chairback',seatW:22*25.4,widths:[19,20,21,22]},bench:{name:'Bench',seatW:18*25.4,widths:[18,19,20,21]}};
 // ---------- zones: four sides per tier on rectangular fields ----------
 // Geometric keys, clockwise on screen: T top sideline, R right end, B bottom sideline, L left end.
@@ -638,7 +657,7 @@ function defaults(){const S=SPORTS.ncaafb,f={};
   zt:[tierDef(20,'all',f),tierDef(20,'all',f),tierDef(20,'all',f)].map(t=>{t.corners='chamfer';                 // E/W chairback, N/S bench
     ['T','B'].forEach(k=>Object.assign(t.z[k],{seat:'standard',seatW:22*25.4}));['L','R'].forEach(k=>Object.assign(t.z[k],{seat:'bench',seatW:18*25.4}));return t;}),
   eye:eyeDefaults(),eyeRev:EYE_REV,eyeMode:'sit',slabT:5*25.4,step:12.7,maxRiser:24*25.4,bank:1,maxRake:34,loss:12,vd:700*0.3048,capTarget:30000,railH:27*25.4,minHead:10*304.8,suiteH:4.27};}
-function defaultsPinned(){const d=defaults();alignUpperTiers(d);return d;}
+function defaultsPinned(){const d=defaults();d.zt.forEach(t=>GEO.forEach(k=>t.z[k].target=cvDefault(d.sport)));d.cvRev=2;alignUpperTiers(d);return d;}
 // Saved bowls from before zones: one profile for the whole bowl becomes the same profile on every side.
 function migrate(o){if(!o||o.zt)return o;const d=defaults();
   d.zt.forEach((t,i)=>{const lt=(o.tiers||[])[i]||{};GEO.forEach(k=>Object.assign(t.z[k],{rows:lt.rows??t.z[k].rows,gap:lt.gap??t.z[k].gap,rise:lt.rise??t.z[k].rise,
@@ -713,7 +732,8 @@ function keepGaps(P,g){for(let ti=1;ti<3;ti++)for(const k of GEO)Object.assign(P
 function fixP(P){if(!SPORTS[P.sport])P.sport=LEGACY_SPORT[P.sport]||'fifa';const d=defaults();
   if(P.eyeRev!==EYE_REV){P.eye=eyeDefaults();P.eyeRev=EYE_REV;}P.eye=Object.assign(eyeDefaults(),P.eye||{});delete P.eye.bnFront;if(P.eyeMode!=='stand')P.eyeMode='sit';
   for(const k of['fl','cf','bs','L','W','lanes','railH','minHead','suiteH','maxRiser','step','slabT'])if(!(P[k]>0))P[k]=d[k];
-  P.north='L';if(P.planOri!=='h')P.planOri='v';P.tierCount=Math.min(2,Math.max(1,P.tierCount|0||2));
+  P.north='L';if(P.planOri!=='h')P.planOri='v';
+  if(P.cvRev!==2){P.zt.forEach(t=>GEO.forEach(k=>{if(t.z[k])t.z[k].target=cvDefault(P.sport);}));P.cvRev=2;}   // adopt the sport C-value onceP.tierCount=Math.min(2,Math.max(1,P.tierCount|0||2));
   Object.assign(P,{step:12.7,maxRiser:24*25.4,bank:1,railH:27*25.4,minHead:10*304.8});             // fixed values
   if(P.sport==='nfl'||P.sport==='ncaafb')Object.assign(P,{L:360*0.3048,W:160*0.3048});           // football field 360 ft x 160 ftif(!GEO.includes(P.sec))P.sec='T';
   if(!Array.isArray(P.zt)||P.zt.length<3)P.zt=d.zt;
@@ -921,7 +941,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.43';
+const VERSION='2026.10.03.2';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1023,7 +1043,7 @@ function fieldSliders(){const S=SPORTS[P.sport];
   if(S.shape==='track')return slider('lanes','Lanes',6,10,1,'lanes')+'<p class="hint">Bends, straights and lane width are fixed by the standard track; the bowl wraps the outside lane and the straight chute.</p>';
   if(S.shape==='oval')return slider('L','Boundary rope, end to end',118,165,0.01,'m')+slider('W','Boundary rope, side to side',118,165,0.01,'m');
   return slider('L','Field length',10,200,0.01,'m')+slider('W','Field width',5,130,0.01,'m');}
-function applySport(k){const x=SPORTS[k],g=gapsOf(P);Object.assign(P,{sport:k});P.zt.forEach(t=>GEO.forEach(g=>Object.assign(t.z[g],{D:x.D,Z:x.Z})));
+function applySport(k){const x=SPORTS[k],g=gapsOf(P);Object.assign(P,{sport:k});P.zt.forEach(t=>GEO.forEach(g=>Object.assign(t.z[g],{D:x.D,Z:x.Z,target:cvDefault(k)})));
   if(x.shape==='fan')Object.assign(P,{fl:x.fl,cf:x.cf,bs:x.bs});else if(x.shape==='track')Object.assign(P,{lanes:x.lanes,L:x.L,W:x.W});else Object.assign(P,{L:x.L,W:x.W});keepGaps(P,g);CUR=null;renderControls();update();}
 // zt.<tier>.<keys>.<param> edits a group of zones together, so linked sides can never drift apart
 function lowerTop(ti,k){const lo=solveZone(Object.assign({},P,{tierCount:Math.max(P.tierCount,ti+1)}),k).filter(r=>r.tier===ti-1);return lo[lo.length-1];}
@@ -1035,6 +1055,12 @@ function set(path,v){if(path.startsWith('zt.')){const [,ti,ks,p]=path.split('.')
     if(p==='Zabs'){for(const k of ks){const t=lowerTop(+ti,k);P.zt[+ti].z[k].rise=v-(t?t.z:0)/1000;}return;}
     for(const k of ks)P.zt[+ti].z[k][p]=v;if(p==='X')renderControls();return;}
   const ks=path.split('.');const last=ks.pop();ks.reduce((o,k)=>o[k],P)[last]=v;}
+function cvEditor(pre,z,ti){const set=cvSet(P.sport),p=pre+'.target';META[p]={min:25.4,max:10*25.4,step:1e-6,kind:'mm'};
+  const lab=mm=>imperial()?`${(mm/25.4).toFixed(2)}" (${mm} mm)`:`${mm} mm (${(mm/25.4).toFixed(2)}")`;
+  return `<div class="sl"><div class="sl-top"><label for="n_${p}">Absolute minimum C-value</label><span class="sl-val"><input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" class="len" id="n_${p}" data-p="${p}" value="${imperial()?(z.target/25.4).toFixed(4)+'"':z.target.toFixed(2)+' mm'}" title="Type a value to override, e.g. 2.5&quot; or 64 mm"></span></div>`
+    +`<div class="hint" style="margin:2px 0 4px">${set.src}</div><div class="seg">`
+    +set.opts.map(([n,mm])=>`<button data-cv="${mm}" data-g="${pre}" class="${Math.abs(z.target-mm)<0.01?'on':''}" title="${n}">${n}: ${lab(mm)}</button>`).join('')
+    +`<button data-cvreset="${pre}">Reset</button></div></div>`;}
 function setbackText(ti,k){const zr=solveZone(P,k),lo=zr.filter(r=>r.tier===ti-1),up=zr.find(r=>r.tier===ti);if(!lo.length||!up)return '';
   const sb=up.x-(lo[lo.length-1].x+lo[lo.length-1].T);return sb<0?`Overhangs the tier below by ${L(-sb)}.`:`${L(sb)} behind the top row of the tier below.`;}
 function zoneEditor(ti,g){
@@ -1048,7 +1074,7 @@ function zoneEditor(ti,g){
     +`<p class="hint">${z.riser==='constant'?`One riser for every row: the smallest ${L(P.step)} step that meets the C-value, up to the ${L(P.maxRiser)} maximum.`:`Each riser sized to meet the C-value, in ${L(P.step)} steps.`} Sized for ${BASIS[z.basis]||'sitting'} spectators.</p>`;
   h+=slider(pre+'.rows','Rows (1 row)',3,80,1,'rows')+slider(pre+'.tread','Typical row depth (1 inch)',24*25.4,52*25.4,25.4,'mm')
     +slider(pre+'.tread0','Bottom row depth (1 inch)',24*25.4,60*25.4,25.4,'mm')
-    +slider(pre+'.target','Absolute minimum C-value (1/4 inch)',2.25*25.4,6*25.4,0.25*25.4,'mm');
+    +cvEditor(pre,z,ti);
   if(ti===0)h+=slider(pre+'.D','Sideline depth (2 foot)',20*0.3048,60*0.3048,0.6096,'m')+slider(pre+'.Z','Tier-1 bottom tread above the pitch (4 inch)',1*0.3048,20*0.3048,0.1016,'m');
   else h+=slider(pre+'.X','Sideline depth (2 foot)',20*0.3048,400*0.3048,0.6096,'m')
     +(z.X==null?'<p class="hint">First riser aligned over the Tier-1 last riser; it follows Tier 1 automatically.</p>'
@@ -1094,7 +1120,7 @@ function renderControls(){
 function syncField(p,el){const mt=META[p],v=get(p);
   document.querySelectorAll(`[data-p="${p}"]`).forEach(x=>{if(x===el)return;
     x.value=x.classList.contains('len')?fieldText(v*(mt.kind==='m'?1000:1),mt.kind,mt.step):v;});}
-function commit(p,v,el){set(p,v);syncField(p,el);CUR=null;update();}
+function commit(p,v,el){set(p,v);syncField(p,el);CUR=null;update();if(/\.target$/.test(p))renderControls();}   // C-value box shows 4 decimals
 $('controls').addEventListener('input',e=>{
   const el=e.target,p=el.dataset.p;if(!p||el.classList.contains('len'))return;
   const v=parseFloat(el.value);if(!isFinite(v))return;commit(p,v,el);
@@ -1120,6 +1146,8 @@ $('controls').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.seat){const s=SEATS[b.dataset.seat],pre=b.dataset.g;set(pre+'.seat',b.dataset.seat);set(pre+'.seatW',s.seatW);}
   else if(b.dataset.sw){set(b.dataset.g+'.seatW',+b.dataset.sw*25.4);}
+  else if(b.dataset.cv){set(b.dataset.g+'.target',+b.dataset.cv);}
+  else if(b.dataset.cvreset){set(b.dataset.cvreset+'.target',cvDefault(P.sport));toast('C-value reset to the '+cvSet(P.sport).src.split(':')[0]+' absolute minimum.');}
   else if(b.dataset.riser){set(b.dataset.g+'.riser',b.dataset.riser);}
   else if(b.dataset.nudge){const p=b.dataset.np,mt=META[p];let v=get(p)+(+b.dataset.nudge)*mt.step;
     v=Math.min(mt.max,Math.max(mt.min,v));commit(p,Math.round(v*1e6)/1e6,null);if(/\.X$/.test(p))renderControls();return;}

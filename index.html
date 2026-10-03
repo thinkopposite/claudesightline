@@ -921,7 +921,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.42';
+const VERSION='2026.09.27.43';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1299,7 +1299,7 @@ function bufferFill(){if(PLAN!=='bowl')return '';
   const G=rectGeo(P),d=k=>{const r=ZR[k].find(r=>r.tier===0);return r?r.x/1000:0;},s=G.side;
   const x0=s.L.p[0]-d('L'),x1=s.R.p[0]+d('R'),y0=s.T.p[1]-d('T'),y1=s.B.p[1]+d('B');
   return `<rect x="${x0.toFixed(2)}" y="${y0.toFixed(2)}" width="${(x1-x0).toFixed(2)}" height="${(y1-y0).toFixed(2)}" fill="var(--grass2)"/>`;}
-function drawPlan(){
+function drawPlan(o={}){
   PLANROT=planRot();
   const S=SPORTS[P.sport],bnd=boundary(P),st=stations(bnd),xs=bnd.map(p=>p[0]),ys=bnd.map(p=>p[1]);
   let x0=Math.min(...xs)-S.pad,x1=Math.max(...xs)+S.pad,y0=Math.min(...ys)-S.pad,y1=Math.max(...ys)+S.pad;
@@ -1317,10 +1317,10 @@ function drawPlan(){
      }});
     if(zoned(P)){const G=rectGeo(P),back=k=>{const zr=ZR[k];if(!zr.length)return 0;const t=zr[zr.length-1];return (t.x+t.T)/1000;};
       const dS=Math.max(back('T'),back('B')),dE=Math.max(back('L'),back('R'));      // same offset on opposite sides keeps W and E level
-      GEO.forEach(k=>{const s=G.side[k];if(!ZR[k].length)return;const d=(isSide(k)?dS:dE)+fs*2.6;
+      GEO.forEach(k=>{const s=G.side[k];if(!ZR[k].length)return;const d=(isSide(k)?dS:dE)+fs*(o.tight?1.25:2.6);
         labels.push([(s.p[0]+s.q[0])/2+s.n[0]*d,(s.p[1]+s.q[1])/2+s.n[1]*d,zoneName(P,k,true)]);});}
     const sc=sectionAt(),sw=(x1-x0)/45;grow(sc[0]+sc[2]*(Rmax+1.5)+sc[2]*sw*1.4,sc[1]+sc[3]*(Rmax+1.5)+sc[3]*sw*1.4,sw*1.6);
-    labels.forEach(([x,y])=>grow(x,y,fs*3));                  // room for three-letter labels such as NEZ
+    labels.forEach(([x,y])=>{const mx=fs*(o.tight?2.6:3),my=fs*(o.tight?1.45:3);x0=Math.min(x0,x-mx);x1=Math.max(x1,x+mx);y0=Math.min(y0,y-my);y1=Math.max(y1,y+my);});   // NEZ needs width more than height
   }else{dims=focalDims(P);
     for(const d of dims){const D=dimLabel(d,fs);if(d.r)grow(d.c[0],d.c[1]);else{grow(D.a[0],D.a[1],fs);grow(D.b[0],D.b[1],fs);}
       const R=D.rot*Math.PI/180,hx=Math.abs(Math.cos(R))*D.tw*.65+Math.abs(Math.sin(R))*fs*2+fs*.4,hy=Math.abs(Math.sin(R))*D.tw*.65+Math.abs(Math.cos(R))*fs*2+fs*.4;
@@ -1503,12 +1503,12 @@ const PLOT_SCALES=()=>imperial()?[[3,'3"'],[1.5,'1 1/2"'],[1,'1"'],[3/4,'3/4"'],
 function trueStrokes(svg,unitPerIn){                           // screen-pixel line weights become paper weights (1 px = 1/96 in)
   return svg.replace(/stroke-width="([\d.]+)"( stroke-dasharray="[^"]*")?( opacity="[^"]*")? vector-effect="non-scaling-stroke"/g,(m,w,d,o)=>`stroke-width="${(Math.max(+w,0.5)/96*unitPerIn).toFixed(4)}"${d?d.replace(/"([\d. ]+)"/,(q,v)=>'"'+v.split(' ').map(n=>(+n/96*unitPerIn).toFixed(3)).join(' ')+'"'):''}${o||''}`);}
 // One drawing per landscape sheet at the largest standard scale that fits inside the border; graphic scale at the lower left.
-function plotOne(sh,what){
+function plotOne(sh,what,maxIn){                 // maxIn: largest scale allowed, inches per foot (e.g. 1/16)
   const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title-sb;
   let fit=null,svg0=null;
-  if(what==='plan'){const keep=[P.planOri,PLAN];P.planOri='h';PLAN='bowl';svg0=drawPlan();P.planOri=keep[0];PLAN=keep[1];
+  if(what==='plan'){const keep=[P.planOri,PLAN];P.planOri='h';PLAN='bowl';svg0=drawPlan({tight:true});P.planOri=keep[0];PLAN=keep[1];
     const pv=svg0.match(/viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/).slice(1).map(Number);
-    for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,w=pv[2]*1000*k,h=pv[3]*1000*k;if(w<=aw&&h<=ah){fit={sc,k,w,h,svg:svg0,u:25.4*sc.ratio/1000};break;}}}
+    for(const sc of PLOT_SCALES().filter(sc=>!maxIn||!imperial()||sc.ratio>=12/maxIn-1e-6)){const k=1/sc.ratio/25.4,w=pv[2]*1000*k,h=pv[3]*1000*k;if(w<=aw&&h<=ah){fit={sc,k,w,h,svg:svg0,u:25.4*sc.ratio/1000};break;}}}
   else{const rows=ZR[P.sec].filter(r=>r.tier===0);
     for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,svg=drawDetail(ZR[P.sec],{fs:sh.txt*25.4*sc.ratio,sparse:(rows[1]||rows[0]).T*k<sh.txt*2.2});
       const v=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number),w=v[0]*k,h=v[1]*k;if(w<=aw&&h<=ah){fit={sc,k,w,h,svg,u:25.4*sc.ratio};break;}}}
@@ -1555,7 +1555,57 @@ function printPlanDetail(){
   setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){toast('Printing is blocked in this browser.');}},300);
   toast(`${draw.length+tabs.length} pages: detail ${draw[0].scale} / ${draw[1].scale}, plan ${draw[2].scale} / ${draw[3].scale}, ${tabs.length} table page${tabs.length>1?'s':''}. Choose "Save as PDF", scale 100%.`);
 }
-$('prPlanDet').onclick=printPlanDetail;
+// PDF set built in the browser (jsPDF + svg2pdf, loaded on first use) and downloaded as YYYYMMDD_hhmmss.pdf
+const loadJS=src=>new Promise((ok,no)=>{if(document.querySelector(`script[src="${src}"]`))return ok();const e=document.createElement('script');e.src=src;e.onload=ok;e.onerror=()=>no(new Error(src));document.head.appendChild(e);});
+const loadB64=url=>new Promise((ok,no)=>{const x=new XMLHttpRequest();x.open('GET',url);x.responseType='arraybuffer';x.onload=()=>{if(x.status&&x.status!==200)return no(new Error(url));
+  const b=new Uint8Array(x.response);let s='';for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));ok(btoa(s));};x.onerror=()=>no(new Error(url));x.send();});
+function pdfReadySvg(svg){                                       // light-theme colours, no text halos, the embedded font
+  const vars=Object.fromEntries([...((document.querySelector('style').textContent.match(/:root\{[^}]*\}/)||[''])[0]).matchAll(/(--[\w-]+):([^;}]+)/g)].map(m=>[m[1],m[2].trim()]));
+  for(let i=0;i<3;i++)svg=svg.replace(/var\((--[\w-]+)\)/g,(m,k)=>vars[k]||'#888888');
+  return svg.replace(/ paint-order="stroke" stroke="[^"]*" stroke-width="[^"]*"( stroke-linejoin="round")?/g,'').replace(/font-family="[^"]*"/g,'font-family="DVS"')
+    .replace(/font-weight="(\d+)"/g,(m,w)=>`font-weight="${+w>=600?'bold':'normal'}"`);}   // the PDF fonts are regular and bold
+async function exportPdfSet(){
+  const btn=$('prPlanDet');btn.disabled=true;toast('Building the PDF set…');
+  try{
+    await loadJS('vendor/jspdf.umd.min.js');await loadJS('vendor/svg2pdf.umd.min.js');
+    const [reg,bold]=await Promise.all([loadB64('vendor/fonts/DejaVuSansCondensed.ttf'),loadB64('vendor/fonts/DejaVuSansCondensed-Bold.ttf')]);
+    const sheets=PLOT_SHEETS(),big=sheets[1],small=sheets[0];
+    const draw=[plotOne(big,'detail'),plotOne(small,'detail'),plotOne(big,'plan',1/16),plotOne(small,'plan')];
+    if(draw.some(p=>!p))throw new Error('A drawing does not fit its sheet at any standard scale.');
+    const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'l',unit:'in',format:[draw[0].sheet.w,draw[0].sheet.h]});
+    doc.addFileToVFS('DVS.ttf',reg);doc.addFont('DVS.ttf','DVS','normal');doc.addFileToVFS('DVSB.ttf',bold);doc.addFont('DVSB.ttf','DVS','bold');
+    const host=document.createElement('div');host.style.cssText='position:fixed;left:-99999px;top:0;width:10px;height:10px;overflow:hidden';document.body.appendChild(host);
+    for(let i=0;i<draw.length;i++){const p=draw[i];if(i)doc.addPage([p.sheet.w,p.sheet.h],'l');
+      host.innerHTML=pdfReadySvg(p.svg);await doc.svg(host.firstElementChild,{x:0,y:0,width:p.sheet.w,height:p.sheet.h});}
+    host.remove();
+    pdfTables(doc);
+    offer(slug()+'.pdf',doc.output('blob'));
+    toast(`PDF set saved: detail ${draw[0].scale} / ${draw[1].scale}, plan ${draw[2].scale} / ${draw[3].scale}.`);
+  }catch(e){toast('The PDF set could not be built: '+e.message);}
+  finally{btn.disabled=false;}
+}
+// seat count tables drawn straight into the PDF: 11 x 17 portrait (A3 in metric), one page per tier
+function pdfTables(doc){
+  const {head,out}=seatCount(),Sp=SPORTS[P.sport],pw=imperial()?11:297/25.4,ph=imperial()?17:420/25.4,m=0.6,rh=0.24;
+  const rows=out.filter(o=>o.kind==='row'),mins=['cs','ct'].map(k=>Math.min(...rows.map(o=>o[k]).filter(v=>v!=null)));
+  const cols=[['Row',2.3,'left'],['C sitting',1.05],['C standing',1.1],...head.map(h=>[h,0.85]),['Row total',1.0]];
+  const cfmt=v=>v==null?'':imperial()?(v/25.4).toFixed(4)+'"':v.toFixed(2)+' mm';
+  const groups=[];let cur=[],ti=0;out.forEach(o=>{cur.push(o);if(o.kind==='sub'){ti++;if(ti<P.tierCount){groups.push(cur);cur=[];}}});groups.push(cur);
+  groups.forEach((g,gi)=>{doc.addPage([pw,ph],'p');let y=m+0.3;
+    doc.setFont('DVS','bold');doc.setFontSize(16);doc.setTextColor(0);doc.text(`Sightline Schematic: Seat Count, Tier ${gi+1}`,m,y);y+=0.28;
+    doc.setFont('DVS','normal');doc.setFontSize(9);doc.setTextColor(60);
+    doc.text(`${Sp.name} (${Sp.org}) | ${optName()} | Seats Lost to Aisles and Vomitories ${P.loss}% | C-Values: Lowest Blue, Below the Minimum Red | ${new Date().toLocaleString()}`,m,y);y+=0.42;
+    const cell=(vals,bold,fill,colors)=>{if(fill){doc.setFillColor(238,242,248);doc.rect(m,y-rh*.72,pw-2*m,rh,'F');}
+      let x=m;doc.setFont('DVS',bold?'bold':'normal');doc.setFontSize(10);
+      cols.forEach(([n,w,al],i)=>{const c=(colors&&colors[i])||[0,0,0];doc.setTextColor(...c);
+        const v=String(vals[i]??'');if(al==='left')doc.text(v,x+0.05,y);else doc.text(v,x+w-0.05,y,{align:'right'});x+=w;});
+      doc.setDrawColor(190);doc.setLineWidth(0.005);doc.line(m,y+rh*.28,m+cols.reduce((a,c)=>a+c[1],0),y+rh*.28);y+=rh;};
+    cell(cols.map(c=>c[0]),true);doc.setDrawColor(0);doc.setLineWidth(0.015);doc.line(m,y-rh*.72,m+cols.reduce((a,c)=>a+c[1],0),y-rh*.72);
+    g.forEach(o=>{const col=k=>{const v=o[k],i=k==='cs'?0:1;if(v==null)return null;return Math.abs(v-mins[i])<1e-6?[0,0,255]:v<o.tg-0.05?[255,0,0]:[0,0,0];};
+      const vals=[titleCase(o.label),o.kind==='row'?cfmt(o.cs):'',o.kind==='row'?cfmt(o.ct):'',...o.v.map(fmt),fmt(o.t)];
+      cell(vals,o.kind!=='row',o.kind==='sub',o.kind==='row'?[null,col('cs'),col('ct')]:null);});});
+}
+$('prPlanDet').onclick=exportPdfSet;
 
 // ---------- seat count by row ----------
 // Rows bottom to top for each tier; whole seats per stand (East, West, NEZ, SEZ, corners counted with their end zone);

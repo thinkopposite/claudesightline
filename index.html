@@ -152,7 +152,7 @@ a.btnlink:hover{border-color:var(--ink)}
     <p class="verdict" id="verdict"></p>
     <div class="planhead" style="margin-top:6px"><h3 id="secTitle">Section</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="secTabs" role="group" aria-label="Section through"></div><div class="seg" id="modeTabs" role="group" aria-label="Sightline mode"><button data-mode="sit" class="on" aria-pressed="true">Sitting</button><button data-mode="stand" aria-pressed="false">Standing</button></div><div class="seg" role="group" aria-label="Print section"><button id="prArchE">Print ARCH E</button><button id="prTab">Print Tabloid</button></div></div></div>
     <div class="panel" id="section"></div>
-    <div class="planhead" style="margin-top:10px"><h3 id="detTitle">Sightline detail</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="detTabs" role="group" aria-label="Detail sightlines"><button data-dm="sit" class="on" aria-pressed="true">Sitting</button><button data-dm="stand" aria-pressed="false">Standing</button></div><div class="seg"><button id="prPlanDet">Print plan and detail</button></div></div></div>
+    <div class="planhead" style="margin-top:10px"><h3 id="detTitle">Sightline detail</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="detTabs" role="group" aria-label="Detail sightlines"><button data-dm="sit" class="on" aria-pressed="true">Sitting</button><button data-dm="stand" aria-pressed="false">Standing</button></div><div class="seg"><button id="prPlanDet">Print PDF set</button></div></div></div>
     <div class="panel" id="detail"></div>
     <div class="legend">
       <span><i style="background:var(--sl-ok);height:1px"></i>Sightline, C-value at or above minimum</span>
@@ -921,7 +921,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.41';
+const VERSION='2026.09.27.42';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1502,48 +1502,58 @@ const PLOT_SCALES=()=>imperial()?[[3,'3"'],[1.5,'1 1/2"'],[1,'1"'],[3/4,'3/4"'],
   :[20,25,50,100,200,250,500,1000,2000].map(r=>({ratio:r,label:`1:${r}`}));
 function trueStrokes(svg,unitPerIn){                           // screen-pixel line weights become paper weights (1 px = 1/96 in)
   return svg.replace(/stroke-width="([\d.]+)"( stroke-dasharray="[^"]*")?( opacity="[^"]*")? vector-effect="non-scaling-stroke"/g,(m,w,d,o)=>`stroke-width="${(Math.max(+w,0.5)/96*unitPerIn).toFixed(4)}"${d?d.replace(/"([\d. ]+)"/,(q,v)=>'"'+v.split(' ').map(n=>(+n/96*unitPerIn).toFixed(3)).join(' ')+'"'):''}${o||''}`);}
-function plotSheet(sh){
-  const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title,gap=sh.txt*5;
-  const keep=[P.planOri,PLAN];P.planOri='h';PLAN='bowl';const plan=drawPlan();P.planOri=keep[0];PLAN=keep[1];
-  const pv=plan.match(/viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/).slice(1).map(Number),rows=ZR[P.sec].filter(r=>r.tier===0);
-  const planFit=(rw,rh)=>{for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,w=pv[2]*1000*k,h=pv[3]*1000*k;if(w<=rw&&h<=rh-sb)return {sc,k,w,h};}return null;};
-  const detFit=(rw,rh)=>{for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,svg=drawDetail(ZR[P.sec],{fs:sh.txt*25.4*sc.ratio,sparse:(rows[1]||rows[0]).T*k<sh.txt*2.2});
-    const v=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number),w=v[0]*k,h=v[1]*k;if(w<=rw&&h<=rh-sb)return {sc,k,w,h,svg};}return null;};
-  let best=null;
-  for(const lay of['side','stack'])for(let t=0.3;t<=0.801;t+=0.05){
-    const pr=lay==='side'?[aw*t-gap/2,ah]:[aw,ah*t-gap/2],dr=lay==='side'?[aw*(1-t)-gap/2,ah]:[aw,ah*(1-t)-gap/2];
-    const p=planFit(...pr),d=detFit(...dr);if(!p||!d)continue;
-    const better=!best||p.sc.ratio<best.p.sc.ratio||(p.sc.ratio===best.p.sc.ratio&&(d.sc.ratio<best.d.sc.ratio||(d.sc.ratio===best.d.sc.ratio&&p.w*p.h+d.w*d.h>best.score)));
-    if(better)best={score:p.w*p.h+d.w*d.h,lay,t,p,d,pr,dr};}                // plan scale first, then the detail's, then paper used
-  if(!best)return null;
-  const {lay,t,p,d,pr,dr}=best,nest=(svg,x,y,w,h,u)=>trueStrokes(svg,u).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="xMidYMid meet" `);
-  const r1={x:B,y:B},r2=lay==='side'?{x:B+pr[0]+gap,y:B}:{x:B,y:B+pr[1]+gap};
-  const place=(r,reg,o)=>({x:r.x+(reg[0]-o.w)/2,y:r.y+(reg[1]-sb-o.h)/2});
-  const pp=place(r1,pr,p),dp=place(r2,dr,d);
-  const bar=(x,y,o,label)=>{const per=(imperial()?304.8:1000)*o.k,divs=[1,2,5,10,20,25,50,100,200,500];let u=divs[0];for(const q of divs)if(q*5*per<=Math.max(o.w*.45,sh.txt*20))u=q;
-    const bh=sh.txt*.7;let g=`<text x="${f(x)}" y="${f(y)}" font-size="${f(sh.txt*1.05)}" font-weight="700">${label}: ${o.sc.label}</text>`;
-    for(let i=0;i<5;i++)g+=`<rect x="${f(x+i*u*per)}" y="${f(y+sh.txt*.5)}" width="${f(u*per)}" height="${f(bh)}" fill="${i%2?'#fff':'#000'}" stroke="#000" stroke-width="${f(sh.txt*.06)}"/>`;
-    for(let i=0;i<=5;i++)g+=`<text x="${f(x+i*u*per)}" y="${f(y+sh.txt*.5+bh+sh.txt*1.05)}" font-size="${f(sh.txt*.85)}" text-anchor="middle">${i*u}</text>`;
-    return g+`<text x="${f(x+5*u*per+sh.txt*.5)}" y="${f(y+sh.txt*.5+bh*.9)}" font-size="${f(sh.txt*.85)}">${imperial()?'feet':'metres'}</text>`;};
+// One drawing per landscape sheet at the largest standard scale that fits inside the border; graphic scale at the lower left.
+function plotOne(sh,what){
+  const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title-sb;
+  let fit=null,svg0=null;
+  if(what==='plan'){const keep=[P.planOri,PLAN];P.planOri='h';PLAN='bowl';svg0=drawPlan();P.planOri=keep[0];PLAN=keep[1];
+    const pv=svg0.match(/viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/).slice(1).map(Number);
+    for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,w=pv[2]*1000*k,h=pv[3]*1000*k;if(w<=aw&&h<=ah){fit={sc,k,w,h,svg:svg0,u:25.4*sc.ratio/1000};break;}}}
+  else{const rows=ZR[P.sec].filter(r=>r.tier===0);
+    for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,svg=drawDetail(ZR[P.sec],{fs:sh.txt*25.4*sc.ratio,sparse:(rows[1]||rows[0]).T*k<sh.txt*2.2});
+      const v=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number),w=v[0]*k,h=v[1]*k;if(w<=aw&&h<=ah){fit={sc,k,w,h,svg,u:25.4*sc.ratio};break;}}}
+  if(!fit)return null;
+  const x=B+(aw-fit.w)/2,y=B+(ah-fit.h)/2,name=what==='plan'?'Bowl plan':`Tier 1 sightline detail (${zoneName(P,P.sec)}, ${DETMODE==='stand'?'standing':'sitting'})`;
+  const per=(imperial()?304.8:1000)*fit.k,divs=[1,2,5,10,20,25,50,100,200,500];let u=divs[0];for(const q of divs)if(q*5*per<=sh.w*.22)u=q;
+  const gy=sh.h-B-title-sb+sh.txt*1.6,bh=sh.txt*.7;
+  let g=`<text x="${f(B)}" y="${f(gy)}" font-size="${f(sh.txt*1.1)}" font-weight="700">Scale ${fit.sc.label}</text>`;
+  for(let i=0;i<5;i++)g+=`<rect x="${f(B+i*u*per)}" y="${f(gy+sh.txt*.5)}" width="${f(u*per)}" height="${f(bh)}" fill="${i%2?'#fff':'#000'}" stroke="#000" stroke-width="${f(sh.txt*.06)}"/>`;
+  for(let i=0;i<=5;i++)g+=`<text x="${f(B+i*u*per)}" y="${f(gy+sh.txt*.5+bh+sh.txt*1.05)}" font-size="${f(sh.txt*.85)}" text-anchor="middle">${i*u}</text>`;
+  g+=`<text x="${f(B+5*u*per+sh.txt*.5)}" y="${f(gy+sh.txt*.5+bh*.9)}" font-size="${f(sh.txt*.85)}">${imperial()?'feet':'metres'}</text>`;
   const Sp=SPORTS[P.sport],ty=sh.h-B-sh.txt*.4;
-  const tb=`<text x="${f(sh.w-B)}" y="${f(ty-sh.txt*1.5)}" font-size="${f(sh.txt*1.5)}" font-weight="800" text-anchor="end">Sightline Schematic</text>`
-    +`<text x="${f(sh.w-B)}" y="${f(ty)}" font-size="${f(sh.txt*.95)}" text-anchor="end">Bowl plan ${p.sc.label} | Tier 1 sightline detail ${d.sc.label} (${zoneName(P,P.sec)}, ${DETMODE==='stand'?'standing':'sitting'}) | ${Sp.name} (${Sp.org}) | ${fmt(M.cap)} seats | ${sh.name} landscape</text>`;
+  const tb=`<text x="${f(sh.w-B)}" y="${f(ty-sh.txt*1.6)}" font-size="${f(sh.txt*1.5)}" font-weight="800" text-anchor="end">Sightline Schematic: ${name}</text>`
+    +`<text x="${f(sh.w-B)}" y="${f(ty)}" font-size="${f(sh.txt*.95)}" text-anchor="end">${Sp.name} (${Sp.org}) | ${optName()} | ${fmt(M.cap)} seats | Scale ${fit.sc.label} | ${sh.name} landscape | ${new Date().toLocaleDateString()}</text>`;
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${f(sh.w)}in" height="${f(sh.h)}in" viewBox="0 0 ${f(sh.w)} ${f(sh.h)}" font-family="Archivo, 'Arial Narrow', Arial, sans-serif"><rect width="${f(sh.w)}" height="${f(sh.h)}" fill="#fff"/>`
-    +nest(plan,pp.x,pp.y,p.w,p.h,25.4*p.sc.ratio/1000)+nest(d.svg,dp.x,dp.y,d.w,d.h,25.4*d.sc.ratio)
-    +bar(pp.x,pp.y+p.h+sh.txt*1.4,p,'Bowl plan')+bar(dp.x,dp.y+d.h+sh.txt*1.4,d,'Sightline detail')+tb+'</svg>';
-  const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:`plan ${p.sc.label}, detail ${d.sc.label}`,sheet:sh};
+    +trueStrokes(fit.svg,fit.u).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(fit.w)}" height="${f(fit.h)}" preserveAspectRatio="xMidYMid meet" `)+g+tb+'</svg>';
+  const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:fit.sc.label,sheet:sh,what};
 }
+// Seat count, one 11 x 17 portrait page per tier; the grand totals go on the last tier's page.
+function tablePages(){const {head,out}=seatCount(),Sp=SPORTS[P.sport],pages=[];
+  const full=countTableHTML().match(/<tbody>([\s\S]*)<\/tbody>/)[1],trs=full.match(/<tr[\s\S]*?<\/tr>/g),thead=countTableHTML().match(/<thead>[\s\S]*<\/thead>/)[0];
+  let cur=[],ti=0;
+  out.forEach((o,i)=>{cur.push(trs[i]);if(o.kind==='sub'){ti++;if(ti<P.tierCount){pages.push({tier:ti,rows:cur});cur=[];}}});
+  pages.push({tier:ti,rows:cur});
+  return pages.map(p=>{const tmp=document.createElement('div');
+    tmp.innerHTML=`<h1>Sightline Schematic: seat count, Tier ${p.tier}</h1><p>${Sp.name} (${Sp.org}) | ${optName()} | seats lost to aisles and vomitories ${P.loss}% | C-values: lowest blue, below the minimum red | ${new Date().toLocaleString()}</p><table>${thead}<tbody>${p.rows.join('')}</tbody></table>`;
+    titleize(tmp);return tmp.innerHTML;});}
 function printPlanDetail(){
-  const pages=PLOT_SHEETS().map(plotSheet);if(pages.some(p=>!p)){toast('The plan does not fit these sheets at any standard scale.');return;}
+  const sheets=PLOT_SHEETS(),big=sheets[1],small=sheets[0];
+  const draw=[plotOne(big,'detail'),plotOne(small,'detail'),plotOne(big,'plan'),plotOne(small,'plan')];
+  if(draw.some(p=>!p)){toast('A drawing does not fit its sheet at any standard scale.');return;}
+  const tabs=tablePages(),tp=imperial()?{w:11,h:17}:{w:297/25.4,h:420/25.4};
   const root=(document.querySelector('style').textContent.match(/:root\{[^}]*\}/)||[''])[0];
-  const css=pages.map((p,i)=>`@page s${i}{size:${p.sheet.w.toFixed(3)}in ${p.sheet.h.toFixed(3)}in;margin:0}.s${i}{page:s${i}}`).join('');
+  const css=draw.map((p,i)=>`@page d${i}{size:${p.sheet.w.toFixed(3)}in ${p.sheet.h.toFixed(3)}in;margin:0}.d${i}{page:d${i}}`).join('')
+    +`@page tp{size:${tp.w.toFixed(3)}in ${tp.h.toFixed(3)}in;margin:.6in}.tp{page:tp}`
+    +`.tp{font:10pt Archivo,'Arial Narrow',Arial,sans-serif;color:#000}.tp h1{font-size:16pt;margin:0 0 4pt}.tp p{margin:0 0 10pt;color:#333}
+      .tp table{border-collapse:collapse;width:100%}.tp th,.tp td{padding:4pt 8pt;text-align:right;border-bottom:.5pt solid #bbb}.tp th:first-child,.tp td:first-child{text-align:left}
+      .tp thead th{border-bottom:1.5pt solid #000}.tp tr.sub td{font-weight:700;border-top:1pt solid #000;background:#eef2f8}.tp tr.tot td{font-weight:800;border-top:1.5pt solid #000}`;
   const html=`<!doctype html><html><head><meta charset="utf-8"><title>${slug()}</title><style>${root}${css}html,body{margin:0;padding:0}.pg{break-after:page}.pg:last-child{break-after:auto}svg{display:block}</style></head><body>`
-    +pages.map((p,i)=>`<div class="pg s${i}">${p.svg}</div>`).join('')+'</body></html>';
+    +draw.map((p,i)=>`<div class="pg d${i}">${p.svg}</div>`).join('')+tabs.map(t=>`<div class="pg tp">${t}</div>`).join('')+'</body></html>';
   let fr=document.getElementById('printFrame');if(fr)fr.remove();
   fr=document.createElement('iframe');fr.id='printFrame';fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';document.body.appendChild(fr);
   const doc=fr.contentDocument;doc.open();doc.write(html);doc.close();
   setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){toast('Printing is blocked in this browser.');}},300);
-  toast(`${pages.map(p=>`${p.sheet.name} at ${p.scale}`).join(' and ')}. Choose "Save as PDF", scale 100%.`);
+  toast(`${draw.length+tabs.length} pages: detail ${draw[0].scale} / ${draw[1].scale}, plan ${draw[2].scale} / ${draw[3].scale}, ${tabs.length} table page${tabs.length>1?'s':''}. Choose "Save as PDF", scale 100%.`);
 }
 $('prPlanDet').onclick=printPlanDetail;
 

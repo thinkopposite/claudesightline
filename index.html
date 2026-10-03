@@ -120,6 +120,9 @@ a.btnlink:hover{border-color:var(--ink)}
 .fixed{width:100%;border-collapse:collapse;font-size:12.5px}.fixed td{padding:3px 0;border-bottom:1px solid var(--line)}.fixed td+td{text-align:right;font-weight:600}
 .rng{display:flex;align-items:center;gap:4px}.rng input[type=range]{flex:1;min-width:0}
 .nudge{padding:0 6px;min-width:22px;height:22px;font-size:10px;line-height:1;border-radius:4px}
+.count td,.count th{text-align:right;padding:4px 10px}.count td:first-child,.count th:first-child{text-align:left}
+.count tr.sub td{font-weight:700;border-top:2px solid var(--line);background:color-mix(in srgb,var(--accent) 7%,var(--panel))}
+.count tr.tot td{font-weight:800;border-top:3px solid var(--ink)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:9px 16px;border-radius:4px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.show{opacity:1}
 @media (max-width:900px){.layout{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}.cols{grid-template-columns:1fr}main{padding:14px}}
@@ -149,6 +152,8 @@ a.btnlink:hover{border-color:var(--ink)}
     <p class="verdict" id="verdict"></p>
     <div class="planhead" style="margin-top:6px"><h3 id="secTitle">Section</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="secTabs" role="group" aria-label="Section through"></div><div class="seg" id="modeTabs" role="group" aria-label="Sightline mode"><button data-mode="sit" class="on" aria-pressed="true">Sitting</button><button data-mode="stand" aria-pressed="false">Standing</button></div><div class="seg" role="group" aria-label="Print section"><button id="prArchE">Print ARCH E</button><button id="prTab">Print Tabloid</button></div></div></div>
     <div class="panel" id="section"></div>
+    <div class="planhead" style="margin-top:10px"><h3 id="detTitle">Sightline detail</h3></div>
+    <div class="panel" id="detail"></div>
     <div class="legend">
       <span><i style="background:var(--sl-ok);height:1px"></i>Sightline, C-value at or above minimum</span>
       <span><i style="background:var(--sl-low);height:1px"></i>Sightline, C-value below minimum</span>
@@ -166,6 +171,9 @@ a.btnlink:hover{border-color:var(--ink)}
     <p class="hint" id="planNote"></p>
     <div class="planhead"><h3 class="opthead" style="margin:0">Saved options</h3><div class="seg"><button id="bkOpt">Back up options</button><button id="rsOpt">Restore options</button><input type="file" id="rsFile" accept=".json,application/json" hidden></div></div><div class="opts" id="opts"></div>
     <details><summary id="schedHead">Row schedule</summary><div class="tablewrap"><table id="table"></table></div></details>
+    <details id="countBox" open><summary>Seat count by row</summary>
+      <div class="seg" style="margin:8px 0"><button id="cntPrint">Print PDF</button><button id="cntXlsx">Export Excel</button></div>
+      <div class="tablewrap" style="max-height:none"><table id="countTable" class="count"></table></div></details>
   </main>
 </div>
 <p class="hint" id="ver" style="padding:0 22px 20px"></p>
@@ -599,7 +607,7 @@ function drawDims(list,g,fs){
 }
 /*ENDSPORTS*/
 /*CORE*/
-const SEATS={standard:{name:'Chairback',seatW:22*25.4},bench:{name:'Bench',seatW:18*25.4}};
+const SEATS={standard:{name:'Chairback',seatW:22*25.4,widths:[19,20,21,22]},bench:{name:'Bench',seatW:18*25.4,widths:[18,19,20,21]}};
 // ---------- zones: four sides per tier on rectangular fields ----------
 // Geometric keys, clockwise on screen: T top sideline, R right end, B bottom sideline, L left end.
 const GEO=['T','R','B','L'],isSide=k=>k==='T'||k==='B',CW={N:'North',E:'East',S:'South',W:'West'};
@@ -641,7 +649,7 @@ function solveZone(P,k){
   for(let ti=0;ti<P.tierCount;ti++){
     const z=P.zt[ti].z[k];if(!z.on)break;
     const tgt=z.target,n=Math.max(1,Math.min(80,Math.round(z.rows)));
-    const Tn=j=>Math.max(500,j===0?(z.tread0??z.tread):j===n-1?(z.treadN??z.tread):z.tread);   // bottom, typical and top row depths
+    const Tn=j=>Math.max(500,j===0?(z.tread0??z.tread):z.tread);   // bottom row, then typical (the top row is a typical row)
     const modes=z.basis==='both'?['sit','stand']:[z.basis==='stand'?'stand':'sit'];     // risers sized for these spectators
     const mk=(j,x,zz,p,riser)=>{const E={};for(const m of modes){const [sb,eh]=eyeAt(P,z.seat,Tn(j),m);E[m]={ex:x+sb,ez:zz+eh};}
       const e0=E[modes[0]],C=p?Math.min(...modes.map(m=>E[m].ez*p.E[m].ex/E[m].ex-p.E[m].ez)):null;   // the worse case governs
@@ -651,7 +659,7 @@ function solveZone(P,k){
     while(j<n){
       if(j===0){
         if(ti===0)prev=mk(0,z.D*1000,z.Z*1000,null,null);
-        else{const lo0=rows.find(r=>r.tier===ti-1),x0=z.X!=null?z.X*1000:prev.x+prev.T+z.gap*1000;
+        else{const lo0=rows.find(r=>r.tier===ti-1),x0=z.X!=null?z.X*1000:prev.x;      // unset: first riser over the last riser below
           prev=mk(0,Math.max(x0,lo0.x+1000),prev.z+(z.rise+Math.max(0,z.suites)*P.suiteH)*1000,null,null);
           prev.railC=prev.ez*prev.x/prev.ex-(prev.z+P.railH);}           // front row looks over the guard at the landing edge
         rows.push(prev);j++;continue;}
@@ -695,15 +703,12 @@ function applyEyes(rows){const mode=P.eyeMode==='stand'?'stand':'sit';
   return rows;}
 const solveAll=P=>Object.fromEntries(zoneKeys(P).map(k=>[k,applyEyes(solveZone(P,k))]));
 // Upper tiers keep an absolute distance from the point of focus (X). Any tier without one takes its current position.
-function pinUpperTiers(P){const Q=Object.assign({},P,{tierCount:3});
-  for(const k of GEO){if(!P.zt.slice(1).some(t=>t.z[k].X==null))continue;const zr=solveZone(Q,k);
-    for(let ti=1;ti<3;ti++){const z=P.zt[ti].z[k],up=zr.find(r=>r.tier===ti);if(z.X==null&&up)z.X=Math.round(up.x/25.4)*25.4/1000;}}}
+function pinUpperTiers(P){}                                          // upper tiers follow the tier below until set by hand
 // setback of every upper tier from the back of the tier below, so a change below (sport, capacity fit) can keep it
 function gapsOf(P){const Q=Object.assign({},P,{tierCount:3}),g={};
   for(const k of GEO){const zr=solveZone(Q,k);g[k]=[];for(let ti=1;ti<3;ti++){const lo=zr.filter(r=>r.tier===ti-1),up=zr.find(r=>r.tier===ti);
     g[k][ti]=lo.length&&up?(up.x-(lo[lo.length-1].x+lo[lo.length-1].T))/1000:P.zt[ti].z[k].gap;}}return g;}
-function alignUpperTiers(P){const Q=Object.assign({},P,{tierCount:3});
-  for(const k of GEO)for(let ti=1;ti<3;ti++){const zr=solveZone(Q,k),lo=zr.filter(r=>r.tier===ti-1);if(lo.length)P.zt[ti].z[k].X=lo[lo.length-1].x/1000;}}
+function alignUpperTiers(P){P.zt.forEach((t,i)=>{if(i)GEO.forEach(k=>t.z[k].X=null);});}
 function keepGaps(P,g){for(let ti=1;ti<3;ti++)for(const k of GEO)Object.assign(P.zt[ti].z[k],{X:null,gap:g[k][ti]});pinUpperTiers(P);}
 function fixP(P){if(!SPORTS[P.sport])P.sport=LEGACY_SPORT[P.sport]||'fifa';const d=defaults();
   if(P.eyeRev!==EYE_REV){P.eye=eyeDefaults();P.eyeRev=EYE_REV;}P.eye=Object.assign(eyeDefaults(),P.eye||{});delete P.eye.bnFront;if(P.eyeMode!=='stand')P.eyeMode='sit';
@@ -714,7 +719,7 @@ function fixP(P){if(!SPORTS[P.sport])P.sport=LEGACY_SPORT[P.sport]||'fifa';const
   if(!Array.isArray(P.zt)||P.zt.length<3)P.zt=d.zt;
   P.zt.forEach((t,i)=>{if(i&&P.zt[0].corners)t.corners=P.zt[0].corners;
     GEO.forEach(k=>{if(t.z[k]&&t.z.T){t.z[k].on=true;t.z[k].D=t.z.T.D;}});
-    if(t.link!=='all'){t.link='all';GEO.forEach(k=>{if(k==='T'||!t.z.T||!t.z[k])return;const keep={};PER_SIDE.forEach(p=>keep[p]=t.z[k][p]);t.z[k]=Object.assign(JSON.parse(JSON.stringify(t.z.T)),keep);});}if(t.corners==='auto')t.corners='round';if(!['chamfer','round','open'].includes(t.corners))t.corners='chamfer';GEO.forEach(k=>{const o=t.z[k]||{};if(o.tread0==null)o.tread0=o.tread;if(o.treadN==null)o.treadN=o.tread;if(!SEATS[o.seat])o.seat='standard';o.suites=0;t.z[k]=zp(o);});});
+    if(t.link!=='all'){t.link='all';GEO.forEach(k=>{if(k==='T'||!t.z.T||!t.z[k])return;const keep={};PER_SIDE.forEach(p=>keep[p]=t.z[k][p]);t.z[k]=Object.assign(JSON.parse(JSON.stringify(t.z.T)),keep);});}if(t.corners==='auto')t.corners='round';if(!['chamfer','round'].includes(t.corners))t.corners='chamfer';GEO.forEach(k=>{const o=t.z[k]||{};if(o.tread0==null)o.tread0=o.tread;if(o.treadN==null)o.treadN=o.tread;if(!SEATS[o.seat])o.seat='standard';o.suites=0;t.z[k]=zp(o);});});
   pinUpperTiers(P);return P;}
 function status(r){if(r.railC!=null)return r.railC>=0?'pass':'fail';if(r.C==null)return'front';
   if(r.C>=r.target-0.05)return'pass';if(r.C>=r.target*2/3)return'reduced';return'fail';}
@@ -776,7 +781,7 @@ function seatLen(P,CH,r){const d=(r.x+r.T/2)/1000,ch=CH[r.tier][r.zone];
   return ch==='ring'?polyPerim(boundary(P))+2*Math.PI*d:chainLen(ch,d);}
 function metrics(P,ZR,CH){
   const rows=Object.values(ZR).flat();let cap=0;const tierSeats=[],zoneSeats=[];
-  rows.forEach(r=>{const s=seatLen(P,CH,r)*1000/r.seatW*(1-P.loss/100);cap+=s;tierSeats[r.tier]=(tierSeats[r.tier]||0)+s;
+  rows.forEach(r=>{r.gross=Math.floor(seatLen(P,CH,r)*1000/r.seatW+1e-9);const s=r.gross*(1-P.loss/100);cap+=s;tierSeats[r.tier]=(tierSeats[r.tier]||0)+s;
     (zoneSeats[r.tier]=zoneSeats[r.tier]||{})[r.zone]=(zoneSeats[r.tier][r.zone]||0)+s;});
   const cs=rows.filter(r=>r.C!=null),worst=cs.reduce((a,r)=>!a||r.C<a.C?r:a,null);
   const rk=rows.filter(r=>r.rake!=null),steep=rk.reduce((a,r)=>!a||r.rake>a.rake?r:a,null);
@@ -916,12 +921,12 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.09.27.36';
+const VERSION='2026.09.27.37';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
 // When the defaults change (DREV goes up), each browser starts once from the new default bowl; saved options are kept.
-const DREV=8;let NEWDEF=false;
+const DREV=9;let NEWDEF=false;
 try{if((+localStorage.getItem('sightline-defaults-rev')||0)<DREV){NEWDEF=!!P;P=null;localStorage.setItem('sightline-defaults-rev',String(DREV));localStorage.setItem('sightline-units',JSON.stringify({sys:'imperial',metric:'mm',imperial:'ftin-frac'}));}}catch(e){}
 if(!P)P=defaultsPinned();
 const $=id=>document.getElementById(id);
@@ -1021,8 +1026,14 @@ function fieldSliders(){const S=SPORTS[P.sport];
 function applySport(k){const x=SPORTS[k],g=gapsOf(P);Object.assign(P,{sport:k});P.zt.forEach(t=>GEO.forEach(g=>Object.assign(t.z[g],{D:x.D,Z:x.Z})));
   if(x.shape==='fan')Object.assign(P,{fl:x.fl,cf:x.cf,bs:x.bs});else if(x.shape==='track')Object.assign(P,{lanes:x.lanes,L:x.L,W:x.W});else Object.assign(P,{L:x.L,W:x.W});keepGaps(P,g);CUR=null;renderControls();update();}
 // zt.<tier>.<keys>.<param> edits a group of zones together, so linked sides can never drift apart
-function get(path){if(path.startsWith('zt.')){const [,ti,ks,p]=path.split('.');return P.zt[+ti].z[ks[0]][p];}return path.split('.').reduce((o,k)=>o[k],P);}
-function set(path,v){if(path.startsWith('zt.')){const [,ti,ks,p]=path.split('.');for(const k of ks)P.zt[+ti].z[k][p]=v;return;}
+function lowerTop(ti,k){const lo=solveZone(Object.assign({},P,{tierCount:Math.max(P.tierCount,ti+1)}),k).filter(r=>r.tier===ti-1);return lo[lo.length-1];}
+function get(path){if(path.startsWith('zt.')){const [,ti,ks,p]=path.split('.'),z=P.zt[+ti].z[ks[0]];
+    if(p==='Zabs'){const t=lowerTop(+ti,ks[0]);return Math.round(((t?t.z:0)/1000+z.rise)*1e4)/1e4;}
+    if(p==='X'&&z.X==null){const t=lowerTop(+ti,ks[0]);return t?Math.round(t.x/1000*1e4)/1e4:0;}
+    return z[p];}return path.split('.').reduce((o,k)=>o[k],P);}
+function set(path,v){if(path.startsWith('zt.')){const [,ti,ks,p]=path.split('.');
+    if(p==='Zabs'){for(const k of ks){const t=lowerTop(+ti,k);P.zt[+ti].z[k].rise=v-(t?t.z:0)/1000;}return;}
+    for(const k of ks)P.zt[+ti].z[k][p]=v;if(p==='X')renderControls();return;}
   const ks=path.split('.');const last=ks.pop();ks.reduce((o,k)=>o[k],P)[last]=v;}
 function setbackText(ti,k){const zr=solveZone(P,k),lo=zr.filter(r=>r.tier===ti-1),up=zr.find(r=>r.tier===ti);if(!lo.length||!up)return '';
   const sb=up.x-(lo[lo.length-1].x+lo[lo.length-1].T);return sb<0?`Overhangs the tier below by ${L(-sb)}.`:`${L(sb)} behind the top row of the tier below.`;}
@@ -1030,17 +1041,19 @@ function zoneEditor(ti,g){
   const z=P.zt[ti].z[g[0]],pre=`zt.${ti}.${g.join('')}`;let h='';
   const seatBlock=(keys,title)=>{const zz=P.zt[ti].z[keys[0]],pp=`zt.${ti}.${keys.join('')}`;
     return (title?`<div class="lab">${title}</div>`:'')+'<div class="seg" style="margin:6px 0 0">'+Object.entries(SEATS).map(([k,s])=>`<button data-seat="${k}" data-g="${pp}" class="${zz.seat===k?'on':''}">${s.name}</button>`).join('')+'</div>'
-      +slider(pp+'.seatW',`${(SEATS[zz.seat]||SEATS.standard).name} seat width (1 inch)`,14*25.4,30*25.4,25.4,'mm');};
+      +`<div class="lab">${(SEATS[zz.seat]||SEATS.standard).name} seat width</div><div class="seg">`+(SEATS[zz.seat]||SEATS.standard).widths.map(w=>`<button data-sw="${w}" data-g="${pp}" class="${Math.abs(zz.seatW-w*25.4)<0.1?'on':''}">${imperial()?w+'"':L(w*25.4)}</button>`).join('')+'</div>';};
   const all4=g.length===4;
   h+=all4?seatBlock(['T','B'],'East and West sidelines')+seatBlock(['L','R'],'North and South end zones'):seatBlock(g,'');
   h+='<div class="lab">Riser</div><div class="seg">'+[['parabolic','Parabolic riser'],['constant','Constant riser']].map(([k,n])=>`<button data-riser="${k}" data-g="${pre}" class="${(z.riser||'parabolic')===k?'on':''}">${n}</button>`).join('')+'</div>'
     +`<p class="hint">${z.riser==='constant'?`One riser for every row: the smallest ${L(P.step)} step that meets the C-value, up to the ${L(P.maxRiser)} maximum.`:`Each riser sized to meet the C-value, in ${L(P.step)} steps.`} Sized for ${BASIS[z.basis]||'sitting'} spectators.</p>`;
   h+=slider(pre+'.rows','Rows (1 row)',3,80,1,'rows')+slider(pre+'.tread','Typical row depth (1 inch)',24*25.4,52*25.4,25.4,'mm')
-    +slider(pre+'.tread0','Bottom row depth (1 inch)',24*25.4,60*25.4,25.4,'mm')+slider(pre+'.treadN','Top row depth (1 inch)',24*25.4,60*25.4,25.4,'mm')
+    +slider(pre+'.tread0','Bottom row depth (1 inch)',24*25.4,60*25.4,25.4,'mm')
     +slider(pre+'.target','Absolute minimum C-value (1/4 inch)',2.25*25.4,6*25.4,0.25*25.4,'mm');
-  if(ti===0)h+=slider(pre+'.D','Sideline depth (1 foot)',10*0.3048,150*0.3048,0.3048,'m')+slider(pre+'.Z','First row above pitch (6 inch)',1*0.3048,20*0.3048,0.1524,'m');
-  else h+=slider(pre+'.X','Sideline depth (1 foot)',10*0.3048,400*0.3048,0.3048,'m')+`<p class="hint" id="sbHint">${setbackText(ti,g[0])}</p>`
-    +slider(pre+'.rise',`Rise from ${ti===1?'main':'upper'} concourse to lower landing (1 inch)`,0,15,0.0254,'m');
+  if(ti===0)h+=slider(pre+'.D','Sideline depth (2 foot)',20*0.3048,60*0.3048,0.6096,'m')+slider(pre+'.Z','Tier-1 bottom tread above the pitch (4 inch)',1*0.3048,20*0.3048,0.1016,'m');
+  else h+=slider(pre+'.X','Sideline depth (2 foot)',20*0.3048,400*0.3048,0.6096,'m')
+    +(z.X==null?'<p class="hint">First riser aligned over the Tier-1 last riser; it follows Tier 1 automatically.</p>'
+      :`<p class="hint" id="sbHint">${setbackText(ti,g[0])}</p><button data-realign="${ti}" style="margin:4px 0 6px">Align to Tier-1 last riser</button>`)
+    +slider(pre+'.Zabs','Tier-2 bottom tread above the pitch (4 inch)',3*0.3048,150*0.3048,0.1016,'m');
   h+=`<button data-zreset="${pre}" style="margin-top:10px">Reset</button>`;
   return h;}
 function renderControls(){
@@ -1058,7 +1071,7 @@ function renderControls(){
   h+='<div class="tier">';
   if(zoned(P)){
     h+='<div class="lab">Side profiles: <b style="color:var(--ink)">All four sides match</b></div>';
-    h+='<div class="lab">Corners</div><div class="seg">'+[['chamfer','Chamfered corner'],['round','Round corner'],['open','Open corner']].map(([k,n])=>`<button data-corner="${k}" class="${T.corners===k?'on':''}">${n}</button>`).join('')+'</div>';}
+    h+='<div class="lab">Corners</div><div class="seg">'+[['chamfer','Chamfered corner'],['round','Round corner']].map(([k,n])=>`<button data-corner="${k}" class="${T.corners===k?'on':''}">${n}</button>`).join('')+'</div>';}
   const G=groups(P,ti);EDIT.g=Math.min(EDIT.g,G.length-1);
   if(G.length>1)h+='<div class="tabs sub" role="tablist">'+G.map((g,i)=>`<button role="tab" data-eg="${i}" class="${i===EDIT.g?'on':''}" aria-selected="${i===EDIT.g}">${groupName(P,ti,g).replace(/ \(.*\)/,'')}</button>`).join('')+'</div>';
   h+=`<p class="zhead">${groupName(P,ti,G[EDIT.g])}</p>`+zoneEditor(ti,G[EDIT.g])+'</div>';
@@ -1106,9 +1119,11 @@ function relink(ti,link){const t=P.zt[ti];t.link=link;
 $('controls').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.seat){const s=SEATS[b.dataset.seat],pre=b.dataset.g;set(pre+'.seat',b.dataset.seat);set(pre+'.seatW',s.seatW);}
+  else if(b.dataset.sw){set(b.dataset.g+'.seatW',+b.dataset.sw*25.4);}
   else if(b.dataset.riser){set(b.dataset.g+'.riser',b.dataset.riser);}
   else if(b.dataset.nudge){const p=b.dataset.np,mt=META[p];let v=get(p)+(+b.dataset.nudge)*mt.step;
-    v=Math.min(mt.max,Math.max(mt.min,mt.min+Math.round((v-mt.min)/mt.step)*mt.step));commit(p,Math.round(v*1e6)/1e6,null);return;}
+    v=Math.min(mt.max,Math.max(mt.min,v));commit(p,Math.round(v*1e6)/1e6,null);if(/\.X$/.test(p))renderControls();return;}
+  else if(b.dataset.realign){GEO.forEach(k=>P.zt[+b.dataset.realign].z[k].X=null);}
   else if(b.dataset.zreset){const [,ti,ks]=b.dataset.zreset.split('.'),d=defaults().zt[+ti];for(const k of ks){const keep={X:P.zt[+ti].z[k].X};Object.assign(P.zt[+ti].z[k],d.z[k],+ti?keep:{});}
     if(+ti)for(const k of ks)P.zt[+ti].z[k].X=null;pinUpperTiers(P);toast('Stand values reset to the defaults.');}
   else if(b.id==='advReset'){const d=defaults();Object.assign(P,{maxRake:d.maxRake,vd:d.vd,loss:d.loss});toast('Advanced values reset to the defaults.');}
@@ -1196,6 +1211,51 @@ function chainDims(rows,tiers,X,Y,fs,band){
     +`<line x1="${f(xo)}" y1="${Y(0)}" x2="${f(xo)}" y2="${Y(rN.z)}" stroke="${c}" ${sw}/>`
     +`<text x="${f(xl)}" y="${f(ym)}" font-size="${f(fs*.6)}" fill="${c}" font-weight="700" text-anchor="middle" transform="rotate(-90 ${f(xl)} ${f(ym)})">Overall: ${L(rN.z)}</text>`;
   return s;
+}
+// Enlarged sightline detail: the top five rows of Tier 1 on the section side, with five spectators (sitting, sitting,
+// standing, sitting, wheelchair on the top tread), their sightlines, and the C-value, eye heights and eye positions.
+function drawDetail(all){
+  const t1=all.filter(r=>r.tier===0),rs=t1.slice(-5);if(rs.length<2)return '<p class="empty" style="padding:16px">Needs at least two rows.</p>';
+  const E=P.eye,IN=25.4,kinds=['sit','sit','stand','sit','wc'].slice(5-rs.length);
+  const eye=(r,k)=>k==='stand'?{x:r.x+E.stOff,z:r.z+E.stH}:{x:r.x+r.T,z:r.z+(k==='wc'?E.wcH:E.sitH)};
+  const ey=rs.map((r,i)=>eye(r,kinds[i])),top=rs[rs.length-1];
+  const X0=rs[0].x-1500,X1=top.x+top.T+1200,Z0=rs[0].z-700,Z1=Math.max(...ey.map(e=>e.z))+900,W=X1-X0,H=Z1-Z0,fs=W/72;
+  const X=x=>(x-X0).toFixed(1),Y=z=>(Z1-z).toFixed(1),c='var(--dim)',tk=fs*.3;
+  const vline=(x,z0,z1,lab,side)=>{const tx=+X(x)+(side||-1)*fs*.45,ym=(+Y(z0)+ +Y(z1))/2;
+    return `<line x1="${X(x)}" y1="${Y(z0)}" x2="${X(x)}" y2="${Y(z1)}" stroke="${c}" stroke-width="0.9" vector-effect="non-scaling-stroke"/>`
+      +[z0,z1].map(z=>`<line x1="${(+X(x)-tk).toFixed(1)}" y1="${(+Y(z)+tk).toFixed(1)}" x2="${(+X(x)+tk).toFixed(1)}" y2="${(+Y(z)-tk).toFixed(1)}" stroke="${c}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`).join('')
+      +`<text x="${tx.toFixed(1)}" y="${ym.toFixed(1)}" font-size="${(fs*.66).toFixed(1)}" fill="${c}" font-weight="650" text-anchor="middle" transform="rotate(-90 ${tx.toFixed(1)} ${ym.toFixed(1)})">${lab}</text>`;};
+  const hline=(x0,x1,z,lab,below)=>{const yy=+Y(z),ty=yy+(below?fs*.95:-fs*.35);
+    return `<line x1="${X(x0)}" y1="${yy}" x2="${X(x1)}" y2="${yy}" stroke="${c}" stroke-width="0.9" vector-effect="non-scaling-stroke"/>`
+      +[x0,x1].map(x=>`<line x1="${(+X(x)-tk).toFixed(1)}" y1="${(yy+tk).toFixed(1)}" x2="${(+X(x)+tk).toFixed(1)}" y2="${(yy-tk).toFixed(1)}" stroke="${c}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`).join('')
+      +`<text x="${((+X(x0)+ +X(x1))/2).toFixed(1)}" y="${ty.toFixed(1)}" font-size="${(fs*.62).toFixed(1)}" paint-order="stroke" stroke="var(--panel)" stroke-width="${(fs*.2).toFixed(1)}" fill="${c}" font-weight="650" text-anchor="middle">${lab}</text>`;};
+  let s=`<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" role="img" aria-label="Enlarged sightline detail">`;
+  s+=`<polygon points="${profileOf(rs,1).map(p=>X(p[0])+','+Y(p[1])).join(' ')}" fill="var(--concrete)" stroke="var(--ink)" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`;
+  // sightlines toward the point of focus, cut at the left edge
+  ey.forEach(e=>{const x=X0,z=e.z*x/e.x;s+=`<line x1="${X(e.x)}" y1="${Y(e.z)}" x2="${X(x)}" y2="${Y(z)}" stroke="var(--sl-ok)" stroke-width="0.9" vector-effect="non-scaling-stroke"/>`;});
+  // spectators
+  const pen='stroke="var(--ink)" stroke-width="1.3" fill="none" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"';
+  rs.forEach((r,i)=>{const e=ey[i],k=kinds[i],hr=4.5*IN,pl=pts=>`<polyline points="${pts.map(([x,z])=>X(x)+','+Y(z)).join(' ')}" ${pen}/>`;
+    s+=`<circle cx="${X(e.x)}" cy="${Y(e.z)}" r="${hr}" ${pen}/><circle cx="${X(e.x)}" cy="${Y(e.z)}" r="${fs*.16}" fill="var(${k==='stand'?'--eye-stand':'--eye-sit'})" stroke="var(--eye-sit)" stroke-width=".6" vector-effect="non-scaling-stroke"/>`;
+    if(k==='stand')s+=pl([[e.x,e.z-hr],[e.x,r.z+34*IN],[e.x-5*IN,r.z]])+pl([[e.x,r.z+34*IN],[e.x+4*IN,r.z]]);
+    else{const seat=r.z+(k==='wc'?20:17)*IN;
+      s+=pl([[e.x,e.z-hr],[e.x+1*IN,seat],[e.x-16*IN,seat],[e.x-17*IN,r.z]]);
+      if(k==='wc')s+=`<circle cx="${X(e.x-3*IN)}" cy="${Y(r.z+12*IN)}" r="${12*IN}" ${pen}/>`;
+      else s+=pl([[e.x-15*IN,seat-1.5*IN],[e.x+2*IN,seat-1.5*IN],[e.x+5*IN,seat+17*IN]]);}
+    s+=`<text x="${X(e.x-6*IN)}" y="${(+Y(e.z+hr)-fs*.4).toFixed(1)}" font-size="${(fs*.6).toFixed(1)}" fill="var(--ink)" text-anchor="middle" font-weight="650">${k==='stand'?'Standing':k==='wc'?'Wheelchair':'Sitting'}</text>`;});
+  // C-value: sightline of spectator 2 over the eye of spectator 1 (both sitting)
+  const a=ey[0],b=ey[1],zl=b.z*a.x/b.x,cx=a.x-12*IN;s+=vline(cx,a.z,zl,'',-1);
+  s+=`<line x1="${X(cx)}" y1="${Y(a.z)}" x2="${X(a.x)}" y2="${Y(a.z)}" stroke="${c}" stroke-width=".6" vector-effect="non-scaling-stroke"/>`
+    +`<text x="${(+X(cx)-fs*.4).toFixed(1)}" y="${(+Y(zl)-fs*.2).toFixed(1)}" font-size="${(fs*.75).toFixed(1)}" fill="${c}" font-weight="800" text-anchor="end">C-value ${L(zl-a.z)}</text>`
+    +`<text x="${(+X(cx)-fs*.4).toFixed(1)}" y="${(+Y(zl)+fs*.7).toFixed(1)}" font-size="${(fs*.6).toFixed(1)}" fill="${c}" text-anchor="end">minimum ${L(rs[1].target)}</text>`;
+  // eye heights and positions
+  const st=kinds.indexOf('stand'),wi=kinds.indexOf('wc'),si=kinds.lastIndexOf('sit')>st?kinds.lastIndexOf('sit'):kinds.indexOf('sit');
+  s+=vline(ey[si].x+9*IN,rs[si].z,ey[si].z,`Sitting eye ${L(E.sitH)}`,1);
+  if(st>=0)s+=vline(ey[st].x+10*IN,rs[st].z,ey[st].z,`Standing eye ${L(E.stH)}`,1);
+  if(wi>=0)s+=vline(ey[wi].x+16*IN,rs[wi].z,ey[wi].z,`Wheelchair eye ${L(E.wcH)}`,1);
+  s+=hline(rs[si].x,ey[si].x,rs[si].z-10*IN,`Sitting eye: back riser (${L(rs[si].T)})`,true);
+  if(st>=0)s+=hline(rs[st].x,ey[st].x,rs[st].z-10*IN,`Standing eye ${L(E.stOff)}`,true);
+  return s+'</svg>';
 }
 let PLAN='bowl',PLANROT=0;
 // The plan is always drawn north up: rotate the drawing so the side facing north sits at the top.
@@ -1315,7 +1375,8 @@ function update(){
   $('secTitle').textContent='Section: '+zoneName(P,P.sec)+(P.eyeMode==='stand'?', standing':', sitting');
   $('lgEye').innerHTML=P.eyeMode==='stand'?'<i style="background:var(--eye-stand);border-radius:50%;width:9px;height:9px;border:1px solid var(--eye-sit)"></i>Standing eye':'<i style="background:var(--eye-sit);border-radius:50%;width:9px;height:9px"></i>Seated eye';
   document.querySelectorAll('#modeTabs [data-mode]').forEach(b=>{const on=b.dataset.mode===P.eyeMode;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
-  $('section').innerHTML=drawSection(ZR[P.sec]);$('plan').innerHTML=drawPlan();
+  $('section').innerHTML=drawSection(ZR[P.sec]);$('detail').innerHTML=drawDetail(ZR[P.sec]);
+  {const t1=ZR[P.sec].filter(r=>r.tier===0);$('detTitle').textContent=`Sightline detail: Tier 1, rows ${Math.max(1,t1.length-4)}–${t1.length}, ${zoneName(P,P.sec)}`;}$('plan').innerHTML=drawPlan();
   const Sp=SPORTS[P.sport];$('planTitle').textContent=`${Sp.org}: ${Sp.name}`;
   $('planNote').innerHTML=`<span style="display:inline-block;width:18px;height:3px;background:${FOCAL};vertical-align:middle;margin-right:6px"></span>Point-of-focus boundary, dimensioned. Drawn from ${Sp.rule}. Field ${fieldDesc(P)}. Check against the current edition before issuing drawings.`;
   const tc=mm=>plain(mm),tu=imperial()?'':` (${unitSuffix().trim()})`;
@@ -1324,6 +1385,7 @@ function update(){
   const ed=$('eyeDerived');if(ed)ed.innerHTML=[['Sitting head height',L(P.eye.sitH+HEAD)],['Standing head height',L(P.eye.stH+HEAD)],['Wheelchair head height',L(P.eye.wcH+HEAD)],
     ['Sitting eye, horizontal','Aligned to the back riser'],['Standing eye, horizontal',`${L(P.eye.stOff)} from the front riser`],['Applies to','Chairback and bench seats']].map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('');
   const sh=$('sbHint');if(sh)sh.textContent=setbackText(EDIT.tier,groups(P,EDIT.tier)[EDIT.g][0]);
+  $('countTable').innerHTML=countTableHTML();
   renderOpts();
 }
 function renderOpts(){
@@ -1381,7 +1443,7 @@ function sectionSheet(key){
     cs=tr.filter(r=>r.C!=null),lc=cs.length?Math.min(...cs.map(r=>r.C)):null;
     return [[`Tier ${ti+1}`,`${tr.length} rows, ${(SEATS[z.seat]||{name:'Custom'}).name}, ${z.riser==='constant'?'constant':'parabolic'} riser for ${BASIS[z.basis]||'sitting'}`],
       ['Lowest riser from focus',L(f0.x)],[ti?'Rise from concourse':'First row above pitch',ti?L((z.rise+z.suites*P.suiteH)*1000):L(f0.z)],
-      ['Rows typ / bottom / top',`${L(z.tread)} / ${L(z.tread0)} / ${L(z.treadN)}`],['Seat width',L(z.seatW)],['Target C / lowest C',`${L(z.target)} / ${lc==null?'n/a':L(lc)}`],
+      ['Rows typ / bottom',`${L(z.tread)} / ${L(z.tread0)}`],['Seat width',L(z.seatW)],['Target C / lowest C',`${L(z.target)} / ${lc==null?'n/a':L(lc)}`],
       ['Steepest rake',rk.toFixed(1)+'°'],['Seats (this side)',fmt(M.zoneSeats[ti]?.[zs]||0)]];});
   // columns share the width between the scale bar and the title block
   const lh=pp.small*1.45,px0=pp.m+Math.max(5*segIn+pp.txt*4,pp.w*.16),ncol=1+tcols.length,colW=(pp.w-pp.m-pp.title-px0)/ncol;
@@ -1413,6 +1475,40 @@ function printSheet(key){
 $('prArchE').onclick=()=>printSheet('archE');
 $('prTab').onclick=()=>printSheet('tabloid');
 
+// ---------- seat count by row ----------
+// Rows bottom to top for each tier; whole seats per stand (East, West, NEZ, SEZ, corners counted with their end zone);
+// tier subtotals and totals, before and after the seats lost to aisles and vomitories.
+const CNT_KEYS=['T','B','L','R'];
+function seatCount(){
+  const keys=zoned(P)?CNT_KEYS:['T'],head=keys.map(k=>zoneName(P,k,true)),f=1-P.loss/100,out=[];let gT=0;
+  for(let ti=0;ti<P.tierCount;ti++){const n=Math.max(0,...keys.map(k=>ZR[k].filter(r=>r.tier===ti).length));let sT=0;const zt=keys.map(()=>0);
+    for(let j=0;j<n;j++){const v=keys.map(k=>{const r=ZR[k].filter(r=>r.tier===ti)[j];return r?r.gross:0;}),t=v.reduce((a,b)=>a+b,0);
+      v.forEach((x,i)=>zt[i]+=x);sT+=t;out.push({kind:'row',label:`Tier ${ti+1}, row ${j+1}`,v,t});}
+    out.push({kind:'sub',label:`Tier ${ti+1} total`,v:zt,t:sT});gT+=sT;}
+  const zAll=keys.map((k,i)=>out.filter(o=>o.kind==='sub').reduce((a,o)=>a+o.v[i],0));
+  out.push({kind:'tot',label:'Total, all seats',v:zAll,t:gT});
+  out.push({kind:'tot',label:`Total less aisles and vomitories (${P.loss}%)`,v:zAll.map(x=>Math.round(x*f)),t:Math.round(gT*f)});
+  return {head,out};}
+function countTableHTML(){const {head,out}=seatCount();
+  return `<thead><tr><th>Row</th>${head.map(h=>`<th>${h}</th>`).join('')}<th>Row total</th></tr></thead><tbody>`
+    +out.map(o=>`<tr class="${o.kind==='row'?'':o.kind}"><td>${o.label}</td>${o.v.map(x=>`<td>${fmt(x)}</td>`).join('')}<td>${fmt(o.t)}</td></tr>`).join('')+'</tbody>';}
+$('cntXlsx').onclick=()=>{const {head,out}=seatCount(),Sp=SPORTS[P.sport];
+  const rows=[['Sightline Schematic: seat count by row'],['Sport',`${Sp.name} (${Sp.org})`],['Option',optName()],['Seats lost to aisles and vomitories (%)',P.loss],[],
+    ['Row',...head,'Row total'],...out.map(o=>[o.label,...o.v,o.t])];
+  const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:44},...head.map(()=>({wch:10})),{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws,'Seat count');offer(slug()+'.xlsx',new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})]));};
+$('cntPrint').onclick=()=>{const Sp=SPORTS[P.sport],tmp=document.createElement('div');
+  tmp.innerHTML=`<h1>Sightline Schematic: seat count by row</h1><p>${Sp.name} (${Sp.org}) | ${optName()} | ${P.tierCount} tier${P.tierCount>1?'s':''} | seats lost to aisles and vomitories ${P.loss}% | ${new Date().toLocaleString()}</p><table>${countTableHTML()}</table>`;
+  titleize(tmp);
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${slug()}</title><style>@page{size:8.5in 11in;margin:.5in}body{font:10pt Archivo,'Arial Narrow',Arial,sans-serif;color:#000}
+    h1{font-size:15pt;margin:0 0 4pt}p{margin:0 0 10pt;color:#333}table{border-collapse:collapse;width:100%}th,td{padding:3pt 8pt;text-align:right;border-bottom:.5pt solid #bbb}
+    th:first-child,td:first-child{text-align:left}thead th{border-bottom:1.5pt solid #000;display:table-cell}thead{display:table-header-group}tr{page-break-inside:avoid}
+    tr.sub td{font-weight:700;border-top:1pt solid #000;background:#eef2f8}tr.tot td{font-weight:800;border-top:1.5pt solid #000}</style></head><body>${tmp.innerHTML}</body></html>`;
+  let fr=document.getElementById('printFrame');if(fr)fr.remove();
+  fr=document.createElement('iframe');fr.id='printFrame';fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';document.body.appendChild(fr);
+  const doc=fr.contentDocument;doc.open();doc.write(html);doc.close();setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){toast('Printing is blocked in this browser.');}},250);
+  toast('Choose "Save as PDF" in the print dialog.');};
+
 // ---------- exports ----------
 const optName=()=>CUR!=null&&OPTS[CUR]?OPTS[CUR].name:'Current bowl';
 const slug=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;};   // YYYYMMDD_hhmmss
@@ -1432,7 +1528,7 @@ $('exRevit').onclick=()=>{
     ['Tread and riser thickness (mm)',Math.round(slabT()*10)/10],['Sightline mode',P.eyeMode==='stand'?'Standing':'Sitting'],['Sitting eye height (mm)',P.eye.sitH],['Standing eye height (mm)',P.eye.stH],['Wheelchair eye height (mm)',P.eye.wcH],['Head above eye (mm)',HEAD],['Sitting eye','over the back riser'],['Standing eye back from front riser (mm)',P.eye.stOff],['Guard at upper tier fronts (mm)',P.railH],[],
     ['Tier','Zone','Seats','Seat type','Rows','Tread (mm)','Seat width (mm)','Target C (mm)','Corners','Profile sheet','Riser','Bottom row (mm)','Top row (mm)','Lowest riser from focus (mm)']];
   CH.forEach((c,ti)=>zoneKeys(P).forEach(k=>{const z=P.zt[ti].z[k],on=!!c[k];
-    sum.push([ti+1,zoneName(P,k),on?Math.round(M.zoneSeats[ti][k]):0,on?(SEATS[z.seat]||{name:'Custom'}).name:'open',on?z.rows:'',on?z.tread:'',on?z.seatW:'',on?z.target:'',zoned(P)?P.zt[ti].corners:'wrap',on?profSheet(ti,k):'',on?(z.riser==='constant'?'Constant':'Parabolic')+` (${BASIS[z.basis]||'sitting'})`:'',on?Math.round(z.tread0*10)/10:'',on?Math.round(z.treadN*10)/10:'',on?Math.round(ZR[k].find(r=>r.tier===ti).x*10)/10:'']);}));
+    sum.push([ti+1,zoneName(P,k),on?Math.round(M.zoneSeats[ti][k]):0,on?(SEATS[z.seat]||{name:'Custom'}).name:'open',on?z.rows:'',on?z.tread:'',on?z.seatW:'',on?z.target:'',zoned(P)?P.zt[ti].corners:'wrap',on?profSheet(ti,k):'',on?(z.riser==='constant'?'Constant':'Parabolic')+` (${BASIS[z.basis]||'sitting'})`:'',on?Math.round(z.tread0*10)/10:'',on?Math.round(z.tread*10)/10:'',on?Math.round(ZR[k].find(r=>r.tier===ti).x*10)/10:'']);}));
   sum.push([],['Profile sheets list closed loops in mm. Origin is the point of focus on the field edge at pitch level. X runs away from the pitch, Z is up.'],
     ['Bowl pieces: each stand is extruded along LINE pieces and revolved at ARC pieces with its own profile. Sightline_BowlMass_R2024.dyn builds them.']);
   add(sum,'Summary');

@@ -140,6 +140,8 @@ a.btnlink:hover{border-color:var(--ink)}
     <button id="saveOpt">Save as option</button>
     <button id="exRevit" class="primary">Export for Revit (.xlsx)</button>
     <button id="exSku" class="primary">Export for SketchUp</button>
+    <button id="dlTab" class="primary">Download project set (Tabloid)</button>
+    <button id="dlArch" class="primary">Download project set (ARCH E)</button>
     <a class="btnlink" href="dynamo/Sightline_BowlMass_R2024.dyn" download>Revit graph (.dyn)</a>
   </div>
 </header>
@@ -150,10 +152,12 @@ a.btnlink:hover{border-color:var(--ink)}
     <div class="stats" id="stats"></div>
     <div class="tablewrap" id="zones"></div>
     <p class="verdict" id="verdict"></p>
-    <div class="planhead" style="margin-top:6px"><h3 id="secTitle">Section</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="secTabs" role="group" aria-label="Section through"></div><div class="seg" id="modeTabs" role="group" aria-label="Sightline mode"><button data-mode="sit" class="on" aria-pressed="true">Sitting</button><button data-mode="stand" aria-pressed="false">Standing</button></div><div class="seg" role="group" aria-label="Print section"><button id="prArchE">Print ARCH E</button><button id="prTab">Print Tabloid</button></div></div></div>
+    <div class="planhead" style="margin-top:6px"><h3 id="secTitle">Section</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="secTabs" role="group" aria-label="Section through"></div><div class="seg" id="modeTabs" role="group" aria-label="Sightline mode"><button data-mode="sit" class="on" aria-pressed="true">Sitting</button><button data-mode="stand" aria-pressed="false">Standing</button></div></div></div>
     <div class="panel" id="section"></div>
-    <div class="planhead" style="margin-top:10px"><h3 id="detTitle">Sightline detail</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="detTabs" role="group" aria-label="Detail sightlines"><button data-dm="sit" class="on" aria-pressed="true">Sitting</button><button data-dm="stand" aria-pressed="false">Standing</button></div><div class="seg"><button id="prPlanDet">Download project set</button></div></div></div>
+    <div class="planhead" style="margin-top:10px"><h3 id="detTitle">Sightline detail</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="detTabs" role="group" aria-label="Detail sightlines"><button data-dm="sit" class="on" aria-pressed="true">Sitting</button><button data-dm="stand" aria-pressed="false">Standing</button></div></div></div>
     <div class="panel" id="detail"></div>
+    <div class="planhead" style="margin-top:10px"><h3 id="spTitle">Enlarged spectators: eye sight values</h3></div>
+    <div class="panel" id="spect" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
     <div class="legend">
       <span><i style="background:var(--sl-ok);height:1px"></i>Sightline, C-value at or above minimum</span>
       <span><i style="background:var(--sl-low);height:1px"></i>Sightline, C-value below minimum</span>
@@ -939,7 +943,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.10.03.11';
+const VERSION='2026.10.04.1';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1252,7 +1256,8 @@ function rowC(rs,i,m){if(i===0||!rs[i]||!rs[i-1])return null;const e=detEye(rs[i
 function inchText(v){if(!imperial())return `${Math.round(v)} mm`;const t=Math.round(v/25.4*16),w=Math.floor(t/16),f=t%16,
   g={2:'⅛',4:'¼',6:'⅜',8:'½',10:'⅝',12:'¾',14:'⅞'}[f]||(f?`${f}/16`:'');return `${w}${g?' '+g:''}"`;}
 function drawDetail(all,o={}){
-  const rs=all.filter(r=>r.tier===0);if(!rs.length)return '<p class="empty" style="padding:16px">No Tier 1 rows.</p>';
+  const ti=o.tier||0,rs=all.filter(r=>r.tier===ti);if(!rs.length)return `<p class="empty" style="padding:16px">No Tier ${ti+1} rows.</p>`;
+  const bufX=(all.find(r=>r.tier===0)||rs[0]).x;                 // the buffer always ends at the Tier 1 front riser
   const IN=25.4,m=DETMODE,E=P.eye,hr=4.5*IN,headTop=4.45*IN,r0=rs[0],last=rs[rs.length-1],band=36*IN;
   const ey=rs.map(r=>{const e=detEye(r,m);return {x:e.ex,z:e.ez};}),Cs=rs.map((r,i)=>rowC(rs,i,m));
   const cMin=Math.min(...Cs.filter(c=>c!=null));
@@ -1266,11 +1271,11 @@ function drawDetail(all,o={}){
     +`<text x="${f1(tx)}" y="${f1(ym)}" font-size="${f1(fs*.7)}" fill="${c}" font-weight="600" text-anchor="middle" transform="rotate(-90 ${f1(tx)} ${f1(ym)})">${lab}</text>`;};
   let s=`<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" role="img" aria-label="Tier 1 sightline detail">`;
   // pitch, buffer and the point-of-focus line
-  s+=`<rect x="0" y="${Y(0)}" width="${X(0)}" height="${band}" fill="var(--pitch)"/><rect x="${X(0)}" y="${Y(0)}" width="${f1(r0.x)}" height="${band}" fill="var(--grass2)"/>`
+  s+=`<rect x="0" y="${Y(0)}" width="${X(0)}" height="${band}" fill="var(--pitch)"/><rect x="${X(0)}" y="${Y(0)}" width="${f1(bufX)}" height="${band}" fill="var(--grass2)"/>`
     +`<text x="${f1(+X(0)/2)}" y="${f1(+Y(0)+band/2+fs*.25)}" font-size="${f1(fs*.65)}" fill="#fff" font-weight="600" text-anchor="middle">Pitch</text>`
-    +`<text x="${f1(+X(0)+r0.x/2)}" y="${f1(+Y(0)+band/2+fs*.25)}" font-size="${f1(fs*.65)}" fill="#fff" font-weight="600" text-anchor="middle">Buffer</text>`
+    +`<text x="${f1(+X(0)+bufX/2)}" y="${f1(+Y(0)+band/2+fs*.25)}" font-size="${f1(fs*.65)}" fill="#fff" font-weight="600" text-anchor="middle">Buffer</text>`
     +`<line x1="${X(0)}" y1="${f1(+Y(0)+band)}" x2="${X(0)}" y2="${f1(+Y(0)-fs*1.6)}" stroke="${FOCAL}" stroke-width="1.2" vector-effect="non-scaling-stroke"/><circle cx="${X(0)}" cy="${Y(0)}" r="${f1(fs*.22)}" fill="var(--ink)"/>`;
-  s+=`<polygon points="${profileOf(rs,0).map(p=>X(p[0])+','+Y(p[1])).join(' ')}" fill="var(${r0.seat==='bench'?'--seat-bench':'--seat-chair'})" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+  s+=`<polygon points="${profileOf(rs,ti).map(p=>X(p[0])+','+Y(p[1])).join(' ')}" fill="var(${r0.seat==='bench'?'--seat-bench':'--seat-chair'})" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
   s+=`<rect x="${X(r0.x-25.4)}" y="${Y(r0.z+P.railH)}" width="50.8" height="${P.railH.toFixed(1)}" fill="#000000"/>`;   // 26 in guard rail, 2 in thick
   // sightlines to the point of focus
   rs.forEach((r,i)=>{const e=ey[i],C=Cs[i],ok=C==null||C>=r.target-0.05;
@@ -1350,6 +1355,49 @@ function drawIso(){
       +`<polygon points="${f(cx+dx*len/2)},${f(cy+dy*len/2)} ${f(cx+dx*len*.2-dy*fsz*.35)},${f(cy+dy*len*.2+dx*fsz*.35)} ${f(cx+dx*len*.2+dy*fsz*.35)},${f(cy+dy*len*.2-dx*fsz*.35)}" fill="var(--ink)"/>`
       +`<text x="${f(cx+dx*(len/2+fsz*.8))}" y="${f(cy+dy*(len/2+fsz*.8)+fsz*.35)}" font-size="${f(fsz*.9)}" font-weight="800" fill="var(--ink)" text-anchor="middle">N</text>`;}
   return svg+'</svg>';
+}
+// ---------- enlarged spectators: three Tier 1 rows, sitting or standing, with the eye sight values dimensioned ----------
+function spectatorRows(){const t1=(ZR.T||[]).filter(r=>r.tier===0);if(t1.length<3)return t1;
+  let k=2,best=Infinity;for(let i=2;i<t1.length;i++){const c=rowC(t1,i,'sit');if(c!=null&&c<best){best=c;k=i;}}return t1.slice(k-2,k+1);}   // ends at the governing row
+function spectatorInfo(mode){const E=P.eye,rs=spectatorRows(),t1=(ZR.T||[]).filter(r=>r.tier===0),i=t1.indexOf(rs[rs.length-1]),C=rowC(t1,i,mode),tg=rs[rs.length-1]?.target;
+  const ci=v=>v==null?'n/a':imperial()?(v/25.4).toFixed(4)+'"':v.toFixed(2)+' mm';
+  return mode==='stand'?[['Standing eye height',`${L(E.stH)} above the tread`],['Standing eye, horizontal',`${L(E.stOff)} back from the front riser`],['Standing head height',`${L(E.stH+HEAD)} (eye + 2 × 2 ¼")`],
+      ['Red line','2 ¼" above the eye'],[`C-value, row ${rs[rs.length-1]?.row} over row ${rs[1]?.row}`,`${ci(C)} (minimum ${ci(tg)})`],['Wheelchair eye height',L(E.wcH)]]
+    :[['Sitting eye height',`${L(E.sitH)} above the tread`],['Sitting eye, horizontal','aligned to the back riser'],['Sitting head height',`${L(E.sitH+HEAD)} (eye + 2 × 2 ¼")`],
+      ['Red line','2 ¼" above the eye'],[`C-value, row ${rs[rs.length-1]?.row} over row ${rs[1]?.row}`,`${ci(C)} (minimum ${ci(tg)})`],['Eye sight values','locked standard, chairback and bench']];}
+function drawSpectator(mode,o={}){
+  const rs=spectatorRows();if(rs.length<2)return '<p class="empty" style="padding:16px">Needs at least two rows.</p>';
+  const IN=25.4,E=P.eye,hr=4.5*IN,ey=rs.map(r=>mode==='stand'?{x:r.x+E.stOff,z:r.z+E.stH}:{x:r.x+r.T,z:r.z+E.sitH}),last=rs[rs.length-1];
+  const fs=o.fs||110,eT0=ey[ey.length-1];                              // margins follow the text size, so larger print scales fit
+  const X0=rs[0].x-300-fs*8,X1=Math.max(eT0.x,last.x+last.T)+9*IN+fs*17,Z0=rs[0].z-30*IN-fs*2.2,Z1=Math.max(...ey.map(e=>e.z))+HEAD+fs*1.6,W=X1-X0,H=Z1-Z0;
+  const X=x=>(x-X0).toFixed(1),Y=z=>(Z1-z).toFixed(1),c='var(--dim)',tk=fs*.3,f1=v=>(+v).toFixed(1);
+  const ln=(x0,z0,x1,z1,w)=>`<line x1="${X(x0)}" y1="${Y(z0)}" x2="${X(x1)}" y2="${Y(z1)}" stroke="${c}" stroke-width="${w||0.9}" vector-effect="non-scaling-stroke"/>`;
+  const vdim=(x,z0,z1,lab,right)=>{const ym=(+Y(z0)+ +Y(z1))/2;return ln(x,z0,x,z1)
+      +[z0,z1].map(z=>`<line x1="${f1(+X(x)-tk)}" y1="${Y(z)}" x2="${f1(+X(x)+tk)}" y2="${Y(z)}" stroke="${c}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`).join('')
+      +`<text x="${f1(+X(x)+(right?fs*.4:-fs*.4))}" y="${f1(ym+fs*.22)}" font-size="${f1(fs*.62)}" fill="${c}" text-anchor="${right?'start':'end'}">${lab}</text>`;};
+  const hdim=(x0,x1,z,lab)=>ln(x0,z,x1,z)+[x0,x1].map(x=>`<line x1="${f1(+X(x)-tk)}" y1="${f1(+Y(z)+tk)}" x2="${f1(+X(x)+tk)}" y2="${f1(+Y(z)-tk)}" stroke="${c}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`).join('')
+      +`<text x="${f1((+X(x0)+ +X(x1))/2)}" y="${f1(+Y(z)+fs*.85)}" font-size="${f1(fs*.62)}" fill="${c}" text-anchor="middle">${lab}</text>`;
+  let s=`<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" role="img" aria-label="Enlarged ${mode==='stand'?'standing':'sitting'} spectators">`;
+  s+=`<polygon points="${profileOf(rs,1).map(p=>X(p[0])+','+Y(p[1])).join(' ')}" fill="var(${rs[0].seat==='bench'?'--seat-bench':'--seat-chair'})" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+  ey.forEach(e=>{s+=`<line x1="${X(e.x)}" y1="${Y(e.z)}" x2="${X(X0)}" y2="${Y(e.z*X0/e.x)}" stroke="var(--sl-ok)" stroke-width="0.9" vector-effect="non-scaling-stroke"/>`;});
+  rs.forEach((r,i)=>{const e=ey[i],cy=e.z+4.45*IN-hr;
+    s+=`<line x1="${X(e.x)}" y1="${Y(cy-hr)}" x2="${X(e.x)}" y2="${Y(r.z)}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/>`
+      +`<circle cx="${X(e.x)}" cy="${Y(cy)}" r="${hr}" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`
+      +`<line x1="${X(e.x-3.5*IN)}" y1="${Y(e.z+2.25*IN)}" x2="${X(e.x+3.5*IN)}" y2="${Y(e.z+2.25*IN)}" stroke="#FF0000" stroke-width="1" vector-effect="non-scaling-stroke"/>`
+      +`<circle cx="${X(e.x)}" cy="${Y(e.z)}" r="${f1(IN*.9)}" fill="var(${mode==='stand'?'--eye-stand':'--eye-sit'})" stroke="var(--eye-sit)" stroke-width=".6" vector-effect="non-scaling-stroke"/>`
+      +`<text x="${X(r.x+r.T*(mode==='stand'?.62:.3))}" y="${f1(+Y(r.z)-fs*.25)}" font-size="${f1(fs*.55)}" fill="var(--ink)" font-weight="600" text-anchor="middle">Row ${r.row}</text>`;});
+  const r0=rs[0],e0=ey[0],m=rs[1],em=ey[1],eT=ey[ey.length-1];
+  // eye height and head height on the top spectator, in the open space to its right
+  const xe=Math.max(eT.x,last.x+last.T)+9*IN;
+  s+=vdim(xe,last.z,eT.z,`${mode==='stand'?'Standing':'Sitting'} eye ${L(mode==='stand'?E.stH:E.sitH)}`,true);
+  const xh=xe+fs*8.4;s+=vdim(xh,last.z,eT.z+HEAD,`Head ${L((mode==='stand'?E.stH:E.sitH)+HEAD)}`,true)+ln(eT.x,eT.z+HEAD,xh+tk,eT.z+HEAD,0.5)+ln(last.x+last.T,last.z,xh+tk,last.z,0.5);
+  // horizontal eye position and tread depth on the middle row; riser of the back row
+  s+=hdim(m.x,em.x,m.z-14*IN,mode==='stand'?`Eye ${L(E.stOff)} from front riser`:`Eye at back riser, ${inchText(m.T)}`);
+  s+=hdim(m.x,m.x+m.T,m.z-30*IN,`Tread ${inchText(m.T)}`);
+  if(last.riser!=null)s+=vdim(last.x-4*IN,m.z,last.z,`Riser ${inchText(last.riser)}`,false);
+  // C-value: the back spectator's sightline over the eye of the one in front
+  const zl=eT.z*em.x/eT.x;s+=vdim(em.x-5*IN,em.z,zl,`C ${imperial()?((zl-em.z)/IN).toFixed(4)+'"':(zl-em.z).toFixed(1)+' mm'}`,false);
+  return s+'</svg>';
 }
 let PLAN='bowl',PLANROT=0;
 // The plan is always drawn north up: rotate the drawing so the side facing north sits at the top.
@@ -1492,6 +1540,8 @@ function update(){
     ['Sitting eye, horizontal','Aligned to the back riser'],['Standing eye, horizontal',`${L(P.eye.stOff)} from the front riser`],['Applies to','Chairback and bench seats']].map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('');
   const sh=$('sbHint');if(sh)sh.textContent=setbackText(EDIT.tier,groups(P,EDIT.tier)[EDIT.g][0]);
   $('countTable').innerHTML=countTableHTML();
+  {const tab=m=>'<table class="fixed" style="margin-top:6px">'+spectatorInfo(m).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')+'</table>';
+   $('spect').innerHTML=['sit','stand'].map(m=>`<div><div class="lab"><b>${m==='stand'?'Standing':'Sitting'}</b>, Tier 1 East, rows ${spectatorRows().map(r=>r.row).join('–')}</div>${drawSpectator(m)}${tab(m)}</div>`).join('');}
   $('iso').innerHTML=drawIso();$('isoTitle').textContent=`Isometric view from the ${({SE:'south-east',SW:'south-west',NW:'north-west',NE:'north-east'})[ISOVIEW]}`;
   renderOpts();
 }
@@ -1579,8 +1629,6 @@ function printSheet(key){
   setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){toast('Printing is blocked in this browser.');}},250);
   toast(`${sh.paper.name} at ${sh.scale}. Choose "Save as PDF" and keep scale at 100%.`);
 }
-$('prArchE').onclick=()=>printSheet('archE');
-$('prTab').onclick=()=>printSheet('tabloid');
 
 // ---------- plan + detail print: two landscape sheets in one PDF ----------
 // Imperial: Tabloid 11x17 (1/4 in border) and ARCH E 36x48 (1 in border). Metric: A3 and A0, same borders.
@@ -1593,6 +1641,8 @@ const PLOT_SHEETS=()=>imperial()?[{name:'Tabloid',w:17,h:11,B:0.25,txt:0.07},{na
 const REVIT_STD=[[1/2,'1/2" = 1\'-0"'],[3/8,'3/8" = 1\'-0"'],[1/4,'1/4" = 1\'-0"'],[3/16,'3/16" = 1\'-0"'],[1/8,'1/8" = 1\'-0"'],[1/10,'1" = 10\'-0"'],
   [3/32,'3/32" = 1\'-0"'],[1/16,'1/16" = 1\'-0"'],[1/20,'1" = 20\'-0"'],[3/64,'3/64" = 1\'-0"'],[1/32,'1/32" = 1\'-0"'],[1/50,'1" = 50\'-0"'],
   [1/64,'1/64" = 1\'-0"'],[1/100,'1" = 100\'-0"'],[1/200,'1" = 200\'-0"']];
+const REVIT_ENLARGED=[[3,'3" = 1\'-0"'],[1.5,'1 1/2" = 1\'-0"'],[1,'1" = 1\'-0"'],[3/4,'3/4" = 1\'-0"']];   // Revit's larger scales, for enlarged details only
+const DETAIL_SCALES=()=>imperial()?[...REVIT_ENLARGED,...REVIT_STD].map(([v,t])=>({ratio:12/v,label:t})):[5,10,20,25,50,100].map(r=>({ratio:r,label:`1:${r}`}));
 const PLOT_SCALES=()=>imperial()?REVIT_STD.map(([v,t])=>({ratio:12/v,label:t})):[20,25,50,100,200,250,500,1000,2000,5000].map(r=>({ratio:r,label:`1:${r}`}));
 function trueStrokes(svg,unitPerIn){                           // screen-pixel line weights become paper weights (1 px = 1/96 in)
   return svg.replace(/stroke-width="([\d.]+)"( stroke-dasharray="[^"]*")?( opacity="[^"]*")? vector-effect="non-scaling-stroke"/g,(m,w,d,o)=>`stroke-width="${(Math.max(+w,0.5)/96*unitPerIn).toFixed(4)}"${d?d.replace(/"([\d. ]+)"/,(q,v)=>'"'+v.split(' ').map(n=>(+n/96*unitPerIn).toFixed(3)).join(' ')+'"'):''}${o||''}`);}
@@ -1632,9 +1682,39 @@ function plotIso(sh,view){const keep=ISOVIEW;ISOVIEW=view;const svg0=drawIso();I
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${f(sh.w)}in" height="${f(sh.h)}in" viewBox="0 0 ${f(sh.w)} ${f(sh.h)}" font-family="Archivo, 'Arial Narrow', Arial, sans-serif"><rect width="${f(sh.w)}" height="${f(sh.h)}" fill="#fff"/>`
     +trueStrokes(svg0,1/k).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="xMidYMid meet" `)+tb+'</svg>';
   const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:'not to scale',sheet:sh,what:'iso'};}
+// One tier's sightline section (East), with its sightlines, C-values, risers and dimensions, at the largest standard scale that fits.
+function plotTier(sh,ti){const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title-sb,rows=ZR.T.filter(r=>r.tier===ti);let fit=null;
+  for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,svg=drawDetail(ZR.T,{tier:ti,fs:sh.txt*25.4*sc.ratio,sparse:(rows[1]||rows[0]).T*k<sh.txt*2.2}),v=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number),w=v[0]*k,h=v[1]*k;
+    if(w<=aw&&h<=ah){fit={sc,k,w,h,svg,u:25.4*sc.ratio};break;}}
+  if(!fit)return null;
+  const x=B+(aw-fit.w)/2,y=B+(ah-fit.h)/2,Sp=SPORTS[P.sport],ty=sh.h-B-sh.txt*.4;
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${f(sh.w)}in" height="${f(sh.h)}in" viewBox="0 0 ${f(sh.w)} ${f(sh.h)}" font-family="Archivo, 'Arial Narrow', Arial, sans-serif"><rect width="${f(sh.w)}" height="${f(sh.h)}" fill="#fff"/>`
+    +trueStrokes(fit.svg,fit.u).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(fit.w)}" height="${f(fit.h)}" preserveAspectRatio="xMidYMid meet" `)+scaleBar(sh,fit)
+    +`<text x="${f(sh.w-B)}" y="${f(ty-sh.txt*1.6)}" font-size="${f(sh.txt*1.5)}" font-weight="800" text-anchor="end">Sightline Schematic: Bowl section, Tier ${ti+1}, ${zoneName(P,'T')}, ${DETMODE==='stand'?'standing':'sitting'}</text>`
+    +`<text x="${f(sh.w-B)}" y="${f(ty)}" font-size="${f(sh.txt*.95)}" text-anchor="end">${Sp.name} (${Sp.org}) | ${optName()} | Scale ${fit.sc.label} | ${sh.name} landscape | ${new Date().toLocaleDateString()}</text></svg>`;
+  const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:fit.sc.label,sheet:sh,what:'tier'};}
+function scaleBar(sh,fit){const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,per=(imperial()?304.8:1000)*fit.k,divs=[1,2,5,10,20,25,50,100,200,500];let u=divs[0];for(const q of divs)if(q*5*per<=sh.w*.22)u=q;
+  const gy=sh.h-B-title-sb+sh.txt*1.6,bh=sh.txt*.7;let g=`<text x="${f(B)}" y="${f(gy)}" font-size="${f(sh.txt*1.1)}" font-weight="700">Scale ${fit.sc.label}</text>`;
+  for(let i=0;i<5;i++)g+=`<rect x="${f(B+i*u*per)}" y="${f(gy+sh.txt*.5)}" width="${f(u*per)}" height="${f(bh)}" fill="${i%2?'#fff':'#000'}" stroke="#000" stroke-width="${f(sh.txt*.06)}"/>`;
+  for(let i=0;i<=5;i++)g+=`<text x="${f(B+i*u*per)}" y="${f(gy+sh.txt*.5+bh+sh.txt*1.05)}" font-size="${f(sh.txt*.85)}" text-anchor="middle">${i*u}</text>`;
+  return g+`<text x="${f(B+5*u*per+sh.txt*.5)}" y="${f(gy+sh.txt*.5+bh*.9)}" font-size="${f(sh.txt*.85)}">${imperial()?'feet':'metres'}</text>`;}
+// Sitting and standing spectators side by side at one standard scale, with the eye sight values listed under each.
+function plotSpectators(sh){const B=sh.B,f=v=>(+v).toFixed(4),info=sh.txt*9,title=sh.txt*3.2,gap=sh.txt*6,aw=(sh.w-2*B-gap)/2,ah=sh.h-2*B-title-info;let fit=null;
+  for(const sc of DETAIL_SCALES()){const k=1/sc.ratio/25.4,fs=sh.txt*1.7*25.4*sc.ratio,d=['sit','stand'].map(m=>drawSpectator(m,{fs}));   // larger text on the enlarged page
+    const v=d.map(x=>x.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number));
+    if(v.every(([w,h])=>w*k<=aw&&h*k<=ah)){fit={sc,k,d,v,u:25.4*sc.ratio};break;}}
+  if(!fit)return null;
+  const Sp=SPORTS[P.sport],ty=sh.h-B-sh.txt*.4,rs=spectatorRows();let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${f(sh.w)}in" height="${f(sh.h)}in" viewBox="0 0 ${f(sh.w)} ${f(sh.h)}" font-family="Archivo, 'Arial Narrow', Arial, sans-serif"><rect width="${f(sh.w)}" height="${f(sh.h)}" fill="#fff"/>`;
+  ['sit','stand'].forEach((m,i)=>{const [w0,h0]=fit.v[i],w=w0*fit.k,h=h0*fit.k,x=B+i*(aw+gap)+(aw-w)/2,y=B+(ah-h)/2,ix=B+i*(aw+gap);
+    svg+=`<text x="${f(ix)}" y="${f(B+sh.txt*1.2)}" font-size="${f(sh.txt*1.3)}" font-weight="800">${m==='stand'?'Standing':'Sitting'} spectators, Tier 1 ${zoneName(P,'T')}, rows ${rs.map(r=>r.row).join('–')}</text>`
+      +trueStrokes(fit.d[i],fit.u).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="xMidYMid meet" `);
+    spectatorInfo(m).forEach(([k2,v2],j)=>{const yy=B+ah+sh.txt*(1.3+j*1.35);svg+=`<text x="${f(ix)}" y="${f(yy)}" font-size="${f(sh.txt*.95)}"><tspan font-weight="700">${k2}: </tspan>${v2}</text>`;});});
+  svg+=`<text x="${f(sh.w-B)}" y="${f(ty-sh.txt*1.6)}" font-size="${f(sh.txt*1.5)}" font-weight="800" text-anchor="end">Sightline Schematic: Eye sight values, sitting and standing</text>`
+    +`<text x="${f(sh.w-B)}" y="${f(ty)}" font-size="${f(sh.txt*.95)}" text-anchor="end">${Sp.name} (${Sp.org}) | ${optName()} | Scale ${fit.sc.label} | ${sh.name} landscape | ${new Date().toLocaleDateString()}</text></svg>`;
+  const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:fit.sc.label,sheet:sh,what:'spect'};}
 // Bowl section (both tiers, the side picked above the section) on one landscape sheet, largest standard scale that fits.
-function plotSection(sh){const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title-sb;let fit=null;
-  for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,svg=drawSection(ZR[P.sec],{fs:sh.txt*25.4*sc.ratio}),v=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number),w=v[0]*k,h=v[1]*k;
+function plotSection(sh,zone){const Z=ZR[zone||P.sec];const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title-sb;let fit=null;
+  for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,svg=drawSection(Z,{fs:sh.txt*25.4*sc.ratio}),v=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number),w=v[0]*k,h=v[1]*k;
     if(w<=aw&&h<=ah){fit={sc,k,w,h,svg,u:25.4*sc.ratio};break;}}
   if(!fit)return null;
   const x=B+(aw-fit.w)/2,y=B+(ah-fit.h)/2,per=(imperial()?304.8:1000)*fit.k,divs=[1,2,5,10,20,25,50,100,200,500];let u=divs[0];for(const q of divs)if(q*5*per<=sh.w*.22)u=q;
@@ -1643,7 +1723,7 @@ function plotSection(sh){const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=s
   for(let i=0;i<=5;i++)g+=`<text x="${f(B+i*u*per)}" y="${f(gy+sh.txt*.5+bh+sh.txt*1.05)}" font-size="${f(sh.txt*.85)}" text-anchor="middle">${i*u}</text>`;
   g+=`<text x="${f(B+5*u*per+sh.txt*.5)}" y="${f(gy+sh.txt*.5+bh*.9)}" font-size="${f(sh.txt*.85)}">${imperial()?'feet':'metres'}</text>`;
   const Sp=SPORTS[P.sport],ty=sh.h-B-sh.txt*.4;
-  const tb=`<text x="${f(sh.w-B)}" y="${f(ty-sh.txt*1.6)}" font-size="${f(sh.txt*1.5)}" font-weight="800" text-anchor="end">Sightline Schematic: Bowl section, ${zoneName(P,P.sec)}, ${P.eyeMode==='stand'?'standing':'sitting'}</text>`
+  const tb=`<text x="${f(sh.w-B)}" y="${f(ty-sh.txt*1.6)}" font-size="${f(sh.txt*1.5)}" font-weight="800" text-anchor="end">Sightline Schematic: Bowl section, overall, ${zoneName(P,zone||P.sec)}${zoned(P)?' (four sides identical)':''}, ${P.eyeMode==='stand'?'standing':'sitting'}</text>`
     +`<text x="${f(sh.w-B)}" y="${f(ty)}" font-size="${f(sh.txt*.95)}" text-anchor="end">${Sp.name} (${Sp.org}) | ${optName()} | ${fmt(M.cap)} seats | Scale ${fit.sc.label} | ${sh.name} landscape | ${new Date().toLocaleDateString()}</text>`;
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${f(sh.w)}in" height="${f(sh.h)}in" viewBox="0 0 ${f(sh.w)} ${f(sh.h)}" font-family="Archivo, 'Arial Narrow', Arial, sans-serif"><rect width="${f(sh.w)}" height="${f(sh.h)}" fill="#fff"/>`
     +trueStrokes(fit.svg,fit.u).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(fit.w)}" height="${f(fit.h)}" preserveAspectRatio="xMidYMid meet" `)+g+tb+'</svg>';
@@ -1687,32 +1767,62 @@ function pdfReadySvg(svg){                                       // light-theme 
   svg=svg.replace(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*[\d.]+\s*)?\)/g,(m,r,g,b)=>'#'+[r,g,b].map(v=>(+v).toString(16).padStart(2,'0')).join(''));   // svg2pdf wants hex colours
   return svg.replace(/ paint-order="stroke" stroke="[^"]*" stroke-width="[^"]*"( stroke-linejoin="round")?/g,'').replace(/font-family="[^"]*"/g,'font-family="DVS"')
     .replace(/font-weight="(\d+)"/g,(m,w)=>`font-weight="${+w>=600?'bold':'normal'}"`);}   // the PDF fonts are regular and bold
-async function exportPdfSet(){
-  const btn=$('prPlanDet');btn.disabled=true;toast('Building the PDF set…');
+async function exportPdfSet(kind){
+  const btn=$(kind==='archE'?'dlArch':'dlTab');btn.disabled=true;toast('Building the project set…');
   try{
     await loadJS('vendor/jspdf.umd.min.js');await loadJS('vendor/svg2pdf.umd.min.js');
     const [reg,bold]=await Promise.all([loadB64('vendor/fonts/DejaVuSansCondensed.ttf'),loadB64('vendor/fonts/DejaVuSansCondensed-Bold.ttf')]);
-    // order: 11x17 section, plan, table pages; then ARCH E section, plan, table pages (A3 / A0 in metric)
-    const sheets=PLOT_SHEETS(),small=sheets[0],big=sheets[1];
-    const sets=[[small,[plotOne(small,'section'),plotOne(small,'plan'),plotIso(small,'SW'),plotIso(small,'SE')],{pw:imperial()?11:297/25.4,ph:imperial()?17:420/25.4,m:0.25}],
-                [big,[plotOne(big,'section'),plotOne(big,'plan'),plotIso(big,'SW'),plotIso(big,'SE')],{pw:imperial()?36:841/25.4,ph:imperial()?48:1189/25.4,m:0.5}]];
-    if(sets.some(([,d])=>d.some(p=>!p)))throw new Error('A drawing does not fit its sheet at any standard scale.');
-    const first=sets[0][1][0],{jsPDF}=window.jspdf,doc=new jsPDF({orientation:'l',unit:'in',format:[first.sheet.w,first.sheet.h]});
+    const sheets=PLOT_SHEETS(),small=sheets[0],big=kind==='archE'?sheets[1]:sheets[0];
+    const draws=[plotSection(big,'T'),...Array.from({length:P.tierCount},(_,ti)=>plotTier(big,ti)),plotOne(big,'plan'),plotIso(big,'SW'),plotIso(big,'SE'),plotSpectators(small)];
+    if(draws.some(p=>!p))throw new Error('A drawing does not fit its sheet at any standard scale.');
+    const port={pw:small.h,ph:small.w,m:0.25};                                             // 11 x 17 (A3) portrait pages
+    const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'l',unit:'in',format:[draws[0].sheet.w,draws[0].sheet.h]});
     doc.addFileToVFS('DVS.ttf',reg);doc.addFont('DVS.ttf','DVS','normal');doc.addFileToVFS('DVSB.ttf',bold);doc.addFont('DVSB.ttf','DVS','bold');
     const host=document.createElement('div');host.style.cssText='position:fixed;left:-99999px;top:0;width:10px;height:10px;overflow:hidden';document.body.appendChild(host);
-    let started=false;
-    for(const [sh,draws,tab] of sets){
-      for(const p of draws){if(started)doc.addPage([p.sheet.w,p.sheet.h],'l');started=true;
-        host.innerHTML=pdfReadySvg(p.svg);await doc.svg(host.firstElementChild,{x:0,y:0,width:p.sheet.w,height:p.sheet.h});}
-      pdfTables(doc,{...tab,fit:true});}
+    for(let i=0;i<draws.length;i++){const p=draws[i];if(i)doc.addPage([p.sheet.w,p.sheet.h],'l');
+      host.innerHTML=pdfReadySvg(p.svg);await doc.svg(host.firstElementChild,{x:0,y:0,width:p.sheet.w,height:p.sheet.h});}
     host.remove();
-    const draw=sets.flatMap(([,d])=>d.filter(p=>p.what!=='iso'));
+    pdfProjectInfo(doc,port);pdfRowSchedule(doc,port,'T');pdfTables(doc,{...port,fit:true});
     const name=`${SPORTS[P.sport].name}_${slug()}.pdf`;offer(name,doc.output('blob'));
-    toast(`${name} saved: section ${draw[0].scale} / ${draw[2].scale}, plan ${draw[1].scale} / ${draw[3].scale}.`);
-  }catch(e){toast('The PDF set could not be built: '+e.message);}
+    toast(`${name} saved (${doc.getNumberOfPages()} pages).`);
+  }catch(e){toast('The project set could not be built: '+e.message);}
   finally{btn.disabled=false;}
 }
 // seat count tables drawn straight into the PDF: 11 x 17 portrait (A3 in metric), one page per tier
+function pdfHeader(doc,title,sub,m,k){let y=m+0.3*k;doc.setFont('DVS','bold');doc.setFontSize(16*k);doc.setTextColor(0);doc.text(title,m,y);y+=0.28*k;
+  doc.setFont('DVS','normal');doc.setFontSize(9*k);doc.setTextColor(60);doc.text(sub,m,y);return y+0.42*k;}
+// Project information: one portrait page of the inputs and results that define the bowl
+function pdfProjectInfo(doc,o){const {pw,ph,m}=o,Sp=SPORTS[P.sport],k=Math.min(1.25,(pw-2*m)/8.5),E=P.eye;doc.addPage([pw,ph],'p');
+  let y=pdfHeader(doc,'Sightline Schematic: Project Information',`${Sp.name} (${Sp.org}) | ${optName()} | ${new Date().toLocaleString()} | Version ${VERSION}`,m,k);
+  const sec=(t,rows)=>{doc.setFont('DVS','bold');doc.setFontSize(11.5*k);doc.setTextColor(0);doc.text(t,m,y);y+=0.08*k;doc.setDrawColor(0);doc.setLineWidth(0.01);doc.line(m,y,pw-m,y);y+=0.24*k;
+    doc.setFontSize(9.5*k);rows.forEach(([a,b])=>{doc.setFont('DVS','bold');doc.text(String(a),m,y);doc.setFont('DVS','normal');
+      const ls=doc.splitTextToSize(String(b),pw-m-(m+3.2*k));ls.forEach((t,i)=>doc.text(t,m+3.2*k,y+i*0.19*k));y+=0.22*k+(ls.length-1)*0.19*k;});y+=0.16*k;};   // long values wrap
+  const t1=ZR.T.filter(r=>r.tier===0),t2=ZR.T.filter(r=>r.tier===1),cv=cvSet(P.sport);
+  sec('Project',[['Sport and governing rules',`${Sp.name} (${Sp.org}), ${Sp.rule}`],['Option',optName()],['Units',imperial()?'Imperial (feet and inches)':'Metric'],
+    ['Field orientation',P.planOri==='h'?'Landscape, north left':'Vertical, north up'],['Field',fieldDesc(P)]]);
+  sec('Bowl',[['Tiers',P.tierCount],['Side profiles','All four sides match'],['Corners',({chamfer:'Chamfered',round:'Round'})[P.zt[0].corners]||P.zt[0].corners],
+    ['Seats','East and West: '+(SEATS[P.zt[0].z.T.seat]||SEATS.standard).name+' '+inchText(P.zt[0].z.T.seatW)+'; NEZ and SEZ: '+(SEATS[P.zt[0].z.L.seat]||SEATS.standard).name+' '+inchText(P.zt[0].z.L.seatW)],
+    ['Tread and riser thickness',inchText(slabT())],['Guard rail at row 1',inchText(P.railH)]]);
+  for(let ti=0;ti<P.tierCount;ti++){const z=P.zt[ti].z.T,tr=ZR.T.filter(r=>r.tier===ti);if(!tr.length)continue;
+    sec(`Tier ${ti+1}`,[['Rows',tr.length],['Lowest riser from point of focus',L(tr[0].x)],['Bottom tread above the pitch',L(tr[0].z)],['Top tread above the pitch',L(tr[tr.length-1].z)],
+      ['Row depth: bottom / typical',`${inchText(z.tread0)} / ${inchText(z.tread)}`],['Risers',`${z.riser==='constant'?'Constant':'Parabolic'}, sized for ${BASIS[z.basis]||'sitting'}`],
+      ['Absolute minimum C-value',`${imperial()?(z.target/25.4).toFixed(4)+'"':z.target.toFixed(1)+' mm'} (${cv.src})`]]);}
+  sec('Eye sight values',[['Sitting eye',`${L(E.sitH)}, aligned to the back riser`],['Standing eye',`${L(E.stH)}, ${L(E.stOff)} from the front riser`],['Wheelchair eye',L(E.wcH)],['Head height','eye + 2 × 2 ¼"']]);
+  sec('Results',[['Seats, all',fmt(seatCount().out.find(o=>o.label==='Total, all seats').t)],[`Seats less aisles and vomitories (${P.loss}%)`,fmt(M.cap)],
+    ['Lowest C-value (current mode)',M.worst?(imperial()?(M.worst.C/25.4).toFixed(4)+'"':M.worst.C.toFixed(1)+' mm'):'n/a'],['Steepest rake',M.steep?M.steep.rake.toFixed(1)+'°':'n/a'],
+    ['Top row above the pitch',L(M.height*1000)],['Farthest viewing distance',L(M.vd*1000)],['Checks',$('verdict').textContent]]);}
+// Row schedule for one side (all tiers), fitted to the page width
+function pdfRowSchedule(doc,o,zone){const {pw,ph,m}=o,Sp=SPORTS[P.sport],rows=ZR[zone];
+  const cols0=[['Row',1.5,'left'],['Riser from focus',1.45],['Tread height',1.25],['Tread depth',1.05],['Riser',0.85],['Rake',0.75],['C sitting',1.05],['C standing',1.1]],w0=cols0.reduce((a,c)=>a+c[1],0);
+  const k=(pw-2*m)/w0,cols=cols0.map(([n,w,a])=>[n,w*k,a]),rh=0.22*k,ci=v=>v==null?'':imperial()?(v/25.4).toFixed(4)+'"':v.toFixed(2)+' mm';
+  doc.addPage([pw,ph],'p');let y=pdfHeader(doc,`Sightline Schematic: Row Schedule, ${zoneName(P,zone)}`,`${Sp.name} (${Sp.org}) | ${optName()} | ${new Date().toLocaleString()}`,m,k);
+  const line=(vals,bold,colors)=>{let x=m;doc.setFont('DVS',bold?'bold':'normal');doc.setFontSize(9.5*k);
+    cols.forEach(([n,w,al],i)=>{doc.setTextColor(...((colors&&colors[i])||[0,0,0]));const v=String(vals[i]??'');if(al==='left')doc.text(v,x+0.04,y);else doc.text(v,x+w-0.04,y,{align:'right'});x+=w;});
+    doc.setDrawColor(190);doc.setLineWidth(0.005);doc.line(m,y+rh*.3,pw-m,y+rh*.3);y+=rh;
+    if(y>ph-m){doc.addPage([pw,ph],'p');y=m+rh;}};
+  line(cols.map(c=>c[0]),true);
+  rows.forEach(r=>{const tr=rows.filter(q=>q.tier===r.tier),j=tr.indexOf(r),cs=rowC(tr,j,'sit'),ct=rowC(tr,j,'stand'),col=v=>v==null?null:v<r.target-0.05?[255,0,0]:[0,0,0];
+    line([`Tier ${r.tier+1}, row ${r.row}`,L(r.x),L(r.z),inchText(r.T),r.riser==null?'':inchText(r.riser),r.rake==null?'':r.rake.toFixed(1)+'°',ci(cs),ci(ct)],false,[null,null,null,null,null,null,col(cs),col(ct)]);});}
 function pdfTables(doc,o={}){
   const {head,out}=seatCount(),Sp=SPORTS[P.sport],pw=o.pw||(imperial()?11:297/25.4),ph=o.ph||(imperial()?17:420/25.4),m=o.m??0.6;
   const rows=out.filter(o=>o.kind==='row'),mins=['cs','ct'].map(k=>Math.min(...rows.map(o=>o[k]).filter(v=>v!=null)));
@@ -1734,7 +1844,7 @@ function pdfTables(doc,o={}){
       const vals=[titleCase(o.label),o.kind==='row'?cfmt(o.cs):'',o.kind==='row'?cfmt(o.ct):'',...o.v.map(fmt),fmt(o.t)];
       cell(vals,o.kind!=='row',o.kind==='sub',o.kind==='row'?[null,col('cs'),col('ct')]:null);});});
 }
-$('prPlanDet').onclick=exportPdfSet;
+$('dlTab').onclick=()=>exportPdfSet('tabloid');$('dlArch').onclick=()=>exportPdfSet('archE');
 
 // ---------- seat count by row ----------
 // Rows bottom to top for each tier; whole seats per stand (East, West, NEZ, SEZ, corners counted with their end zone);

@@ -939,7 +939,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.10.03.9';
+const VERSION='2026.10.03.10';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1589,18 +1589,19 @@ $('prTab').onclick=()=>printSheet('tabloid');
 // Each drawing has its own graphic scale.
 const PLOT_SHEETS=()=>imperial()?[{name:'Tabloid',w:17,h:11,B:0.25,txt:0.07},{name:'ARCH E',w:48,h:36,B:1,txt:0.16}]
   :[{name:'A3',w:420/25.4,h:297/25.4,B:0.25,txt:0.07},{name:'ISO A0',w:1189/25.4,h:841/25.4,B:1,txt:0.16}];
-const PLOT_SCALES=()=>imperial()?[[3,'3"'],[1.5,'1 1/2"'],[1,'1"'],[3/4,'3/4"'],[1/2,'1/2"'],[3/8,'3/8"'],[1/4,'1/4"'],[3/16,'3/16"'],[1/8,'1/8"'],[3/32,'3/32"'],[1/16,'1/16"'],[1/32,'1/32"'],[1/64,'1/64"']].map(([v,t])=>({ratio:12/v,label:`${t} = 1'-0"`}))
-  :[20,25,50,100,200,250,500,1000,2000].map(r=>({ratio:r,label:`1:${r}`}));
+const PLOT_SCALES=()=>imperial()?[[3,'3"'],[1.5,'1 1/2"'],[1,'1"'],[3/4,'3/4"'],[1/2,'1/2"'],[3/8,'3/8"'],[1/4,'1/4"'],[3/16,'3/16"'],[1/8,'1/8"'],[3/32,'3/32"'],[1/16,'1/16"'],[1/32,'1/32"'],[1/64,'1/64"'],[1/128,'1/128"']].map(([v,t])=>({ratio:12/v,label:`${t} = 1'-0"`}))   // 1/128 only as a last resort
+  :[20,25,50,100,200,250,500,1000,2000,5000].map(r=>({ratio:r,label:`1:${r}`}));
 function trueStrokes(svg,unitPerIn){                           // screen-pixel line weights become paper weights (1 px = 1/96 in)
   return svg.replace(/stroke-width="([\d.]+)"( stroke-dasharray="[^"]*")?( opacity="[^"]*")? vector-effect="non-scaling-stroke"/g,(m,w,d,o)=>`stroke-width="${(Math.max(+w,0.5)/96*unitPerIn).toFixed(4)}"${d?d.replace(/"([\d. ]+)"/,(q,v)=>'"'+v.split(' ').map(n=>(+n/96*unitPerIn).toFixed(3)).join(' ')+'"'):''}${o||''}`);}
 // One drawing per landscape sheet at the largest standard scale that fits inside the border; graphic scale at the lower left.
-function plotOne(sh,what,maxIn){
+function plotOne(sh,what,maxIn,fixed){        // fixed: use exactly maxIn, even if the drawing has to run into the border
   if(what==='section')return plotSection(sh);                 // maxIn: largest scale allowed, inches per foot (e.g. 1/16)
   const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title-sb;
   let fit=null,svg0=null;
   if(what==='plan'){const keep=[P.planOri,PLAN];P.planOri='h';PLAN='bowl';svg0=drawPlan({tight:true});P.planOri=keep[0];PLAN=keep[1];
     const pv=svg0.match(/viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/).slice(1).map(Number);
-    for(const sc of PLOT_SCALES().filter(sc=>!maxIn||!imperial()||sc.ratio>=12/maxIn-1e-6)){const k=1/sc.ratio/25.4,w=pv[2]*1000*k,h=pv[3]*1000*k;if(w<=aw&&h<=ah){fit={sc,k,w,h,svg:svg0,u:25.4*sc.ratio/1000};break;}}}
+    for(const sc of PLOT_SCALES().filter(sc=>!maxIn||!imperial()||sc.ratio>=12/maxIn-1e-6)){const k=1/sc.ratio/25.4,w=pv[2]*1000*k,h=pv[3]*1000*k;
+      if((w<=aw&&h<=ah)||(fixed&&imperial())){fit={sc,k,w,h,svg:svg0,u:25.4*sc.ratio/1000,over:w>aw||h>ah};break;}}}
   else{const rows=ZR[P.sec].filter(r=>r.tier===0);
     for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,svg=drawDetail(ZR[P.sec],{fs:sh.txt*25.4*sc.ratio,sparse:(rows[1]||rows[0]).T*k<sh.txt*2.2});
       const v=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number),w=v[0]*k,h=v[1]*k;if(w<=aw&&h<=ah){fit={sc,k,w,h,svg,u:25.4*sc.ratio};break;}}}
@@ -1680,7 +1681,7 @@ async function exportPdfSet(){
     // order: 11x17 section, plan, table pages; then ARCH E section, plan, table pages (A3 / A0 in metric)
     const sheets=PLOT_SHEETS(),small=sheets[0],big=sheets[1];
     const sets=[[small,[plotOne(small,'section'),plotOne(small,'plan')],{pw:imperial()?11:297/25.4,ph:imperial()?17:420/25.4,m:0.25}],
-                [big,[plotOne(big,'section'),plotOne(big,'plan',1/16)],{pw:imperial()?36:841/25.4,ph:imperial()?48:1189/25.4,m:0.5}]];
+                [big,[plotOne(big,'section'),plotOne(big,'plan',1/16,true)],{pw:imperial()?36:841/25.4,ph:imperial()?48:1189/25.4,m:0.5}]];
     if(sets.some(([,d])=>d.some(p=>!p)))throw new Error('A drawing does not fit its sheet at any standard scale.');
     const first=sets[0][1][0],{jsPDF}=window.jspdf,doc=new jsPDF({orientation:'l',unit:'in',format:[first.sheet.w,first.sheet.h]});
     doc.addFileToVFS('DVS.ttf',reg);doc.addFont('DVS.ttf','DVS','normal');doc.addFileToVFS('DVSB.ttf',bold);doc.addFont('DVSB.ttf','DVS','bold');

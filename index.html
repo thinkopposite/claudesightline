@@ -560,18 +560,13 @@ const SPORTS={
   ncaafb:Object.assign(gridiron({nfl:false,hash:60*FT,tryYd:3,D:10}),{name:'College Football',org:'NCAA',rule:'NCAA Football Rules, Rule 1'}),
   nba:   Object.assign(hoops({L:94*FT,W:50*FT,bask:63*IN,bb:4*FT,bbw:6*FT,lane:16*FT,ft:19*FT,ftr:6*FT,tp:23.75*FT,ty:22*FT,ra:4*FT,cc:6*FT,cc2:2*FT,coach:28*FT}),{region:'america',name:'Basketball',org:'NBA',rule:'NBA Official Rules, Court Diagram'}),
   ncaabb:Object.assign(hoops({L:94*FT,W:50*FT,bask:63*IN,bb:4*FT,bbw:6*FT,lane:12*FT,ft:19*FT,ftr:6*FT,tp:22*FT+1.75*IN,ty:21*FT+8*IN,ra:4*FT,cc:6*FT,cc2:0,coach:28*FT}),{region:'america',name:'College Basketball',org:'NCAA',rule:'NCAA Basketball Rules, Rule 1'}),
-  mlb:   Object.assign(baseball({fl:330*FT,cf:400*FT,bs:60*FT,base:18*IN}),{region:'america',name:'Baseball',org:'MLB',rule:'MLB Official Baseball Rules, Rule 2'}),
   mls:   Object.assign(soccer(),{region:'america',name:'Soccer',org:'MLS',rule:'IFAB Laws of the Game, Law 1'}),
   nhl:   Object.assign(nhl(),{region:'america',name:'Ice Hockey',org:'NHL',rule:'NHL Official Rules, Section 1'}),
-  usatf: Object.assign(athletics(),{name:'Track and Field',org:'USATF',rule:'USATF Competition Rules; 400 m standard track per World Athletics Track and Field Facilities Manual'}),
   usta:  Object.assign(tennis(),{region:'america',name:'Tennis',org:'USTA',rule:'ITF Rules of Tennis (USTA edition), Rule 1'}),
   fifa:  Object.assign(soccer(),{region:'world',name:'Association Football',org:'FIFA',rule:'IFAB Laws of the Game, Law 1'}),
-  icc:   Object.assign(cricket(),{region:'world',name:'Cricket',org:'ICC',rule:'ICC Playing Conditions, Law 19 and Law 7'}),
   fiba:  Object.assign(hoops({L:28,W:15,bask:1.575,bb:1.2,bbw:1.8,lane:4.9,ft:5.8,ftr:1.8,tp:6.75,ty:6.6,ra:1.25,cc:1.8,cc2:0,coach:0}),{region:'world',name:'Basketball',org:'FIBA',rule:'FIBA Official Basketball Rules, Art. 2'}),
   fih:   Object.assign(fih(),{region:'world',name:'Field Hockey',org:'FIH',rule:'FIH Rules of Hockey, Field of play'}),
   itf:   Object.assign(tennis(),{region:'world',name:'Tennis',org:'ITF / ATP / WTA',rule:'ITF Rules of Tennis, Rule 1'}),
-  fivb:  Object.assign(volley(),{region:'world',name:'Volleyball',org:'FIVB',rule:'FIVB Official Volleyball Rules, Rule 1'}),
-  wbsc:  Object.assign(baseball({fl:325*FT,cf:400*FT,bs:60*FT,base:15*IN}),{region:'world',name:'Baseball',org:'WBSC',rule:'WBSC Official Baseball Rules, Rule 2'}),
   rugbyu:Object.assign(rugby({union:true,ig:10,W:70,post:5.6}),{region:'world',name:'Rugby Union',org:'World Rugby',rule:'World Rugby Laws of the Game, Law 1'}),
   rugbyl:Object.assign(rugby({union:false,ig:8,W:68,post:5.5}),{region:'world',name:'Rugby League',org:'IRL',rule:'IRL International Laws of the Game, Section 1'})
 };
@@ -659,7 +654,7 @@ function defaults(){const S=SPORTS.ncaafb,f={};
   return {sport:'ncaafb',L:S.L,W:S.W,lanes:8,fl:330*FT,cf:400*FT,bs:60*FT,north:'L',planOri:'v',sec:'T',tierCount:2,
   zt:[tierDef(20,'all',f),tierDef(20,'all',f),tierDef(20,'all',f)].map(t=>{t.corners='chamfer';                 // E/W chairback, N/S bench
     ['T','B'].forEach(k=>Object.assign(t.z[k],{seat:'standard',seatW:22*25.4}));['L','R'].forEach(k=>Object.assign(t.z[k],{seat:'bench',seatW:18*25.4}));return t;}),
-  eye:eyeDefaults(),eyeRev:EYE_REV,eyeMode:'sit',slabT:5*25.4,step:12.7,maxRiser:24*25.4,bank:1,maxRake:34,loss:12,vd:700*0.3048,capTarget:30000,railH:27*25.4,minHead:10*304.8,suiteH:4.27};}
+  eye:eyeDefaults(),eyeRev:EYE_REV,eyeMode:'sit',slabT:5*25.4,step:12.7,maxRiser:24*25.4,bank:1,maxRake:34,loss:12,vd:700*0.3048,capTarget:30000,railH:26*25.4,minHead:10*304.8,suiteH:4.27};}
 function defaultsPinned(){const d=defaults();d.zt.forEach(t=>GEO.forEach(k=>t.z[k].target=cvDefault(d.sport)));d.cvRev=2;alignUpperTiers(d);return d;}
 // Saved bowls from before zones: one profile for the whole bowl becomes the same profile on every side.
 function migrate(o){if(!o||o.zt)return o;const d=defaults();
@@ -680,7 +675,7 @@ function solveZone(P,k){
     let j=0;
     while(j<n){
       if(j===0){
-        if(ti===0)prev=mk(0,z.D*1000,z.Z*1000,null,null);
+        if(ti===0){prev=mk(0,z.D*1000,z.Z*1000,null,null);prev.railC=prev.ez*prev.x/prev.ex-(prev.z+P.railH);}   // row 1 looks over the guard rail
         else{const lo0=rows.find(r=>r.tier===ti-1),x0=z.X!=null?z.X*1000:prev.x;      // unset: first riser over the last riser below
           prev=mk(0,Math.max(x0,lo0.x+1000),prev.z+(z.rise+Math.max(0,z.suites)*P.suiteH)*1000,null,null);
           prev.railC=prev.ez*prev.x/prev.ex-(prev.z+P.railH);}           // front row looks over the guard at the landing edge
@@ -732,12 +727,12 @@ function gapsOf(P){const Q=Object.assign({},P,{tierCount:3}),g={};
     g[k][ti]=lo.length&&up?(up.x-(lo[lo.length-1].x+lo[lo.length-1].T))/1000:P.zt[ti].z[k].gap;}}return g;}
 function alignUpperTiers(P){P.zt.forEach((t,i)=>{if(i)GEO.forEach(k=>t.z[k].X=null);});}
 function keepGaps(P,g){for(let ti=1;ti<3;ti++)for(const k of GEO)Object.assign(P.zt[ti].z[k],{X:null,gap:g[k][ti]});pinUpperTiers(P);}
-function fixP(P){if(!SPORTS[P.sport])P.sport=LEGACY_SPORT[P.sport]||'fifa';const d=defaults();
+function fixP(P){if(!SPORTS[P.sport])P.sport=SPORTS[LEGACY_SPORT[P.sport]]?LEGACY_SPORT[P.sport]:'ncaafb';const d=defaults();
   if(P.eyeRev!==EYE_REV){P.eye=eyeDefaults();P.eyeRev=EYE_REV;}P.eye=Object.assign(eyeDefaults(),P.eye||{});delete P.eye.bnFront;if(P.eyeMode!=='stand')P.eyeMode='sit';
   for(const k of['fl','cf','bs','L','W','lanes','railH','minHead','suiteH','maxRiser','step','slabT'])if(!(P[k]>0))P[k]=d[k];
   P.north='L';if(P.planOri!=='h')P.planOri='v';
   if(P.cvRev!==2){P.zt.forEach(t=>GEO.forEach(k=>{if(t.z[k])t.z[k].target=cvDefault(P.sport);}));P.cvRev=2;}   // adopt the sport C-value onceP.tierCount=Math.min(2,Math.max(1,P.tierCount|0||2));
-  Object.assign(P,{step:12.7,maxRiser:24*25.4,bank:1,railH:27*25.4,minHead:10*304.8});             // fixed values
+  Object.assign(P,{step:12.7,maxRiser:24*25.4,bank:1,railH:26*25.4,minHead:10*304.8});             // fixed values
   if(P.sport==='nfl'||P.sport==='ncaafb')Object.assign(P,{L:360*0.3048,W:160*0.3048});           // football field 360 ft x 160 ftif(!GEO.includes(P.sec))P.sec='T';
   if(!Array.isArray(P.zt)||P.zt.length<3)P.zt=d.zt;
   P.zt.forEach((t,i)=>{if(i&&P.zt[0].corners)t.corners=P.zt[0].corners;
@@ -944,7 +939,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.10.03.5';
+const VERSION='2026.10.03.6';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1109,7 +1104,7 @@ function renderControls(){
     +slider('eye.wcH','Wheelchair eye height (1/2 inch)',24*25.4,84*25.4,12.7,'mm')
     +'<table class="fixed" id="eyeDerived"></table>'+'</div>';
   const fixed=[...(P.sport==='nfl'||P.sport==='ncaafb'?[['Football field length',L(360*304.8)],['Football field width',L(160*304.8)]]:[]),
-    ['Round risers up to',L(12.7)],['Maximum riser',L(24*25.4)],['Rows per riser bank','1'],['Guard at upper tier fronts',L(27*25.4)],['Minimum headroom under tiers',L(10*304.8)]];
+    ['Round risers up to',L(12.7)],['Maximum riser',L(24*25.4)],['Rows per riser bank','1'],['Guard rail at row 1 of each tier',L(26*25.4)],['Minimum headroom under tiers',L(10*304.8)]];
   h+='<details><summary>Advanced</summary>'+(P.sport==='nfl'||P.sport==='ncaafb'?'':fieldSliders())
     +slider('maxRake','Maximum rake (1 degree)',25,40,1,'°')+slider('vd','Viewing distance limit (1 foot)',300*0.3048,1000*0.3048,0.3048,'m')
     +slider('loss','Seats lost to aisles and vomitories (1 %)',0,30,1,'%')
@@ -1195,7 +1190,11 @@ function drawSection(rows,o={}){
   tiers.forEach(ti=>{if(!ti)return;const tr=rows.filter(r=>r.tier===ti),f=tr[0],lo=rows.filter(r=>r.tier===ti-1),lb=lo[lo.length-1],cz=lb.z;
     const cx0=lb.x+lb.T,cx1=Math.max(cx0+4000,f.x);                                   // concourse floor behind the tier below
     s+=`<line x1="${X(cx0)}" y1="${Y(cz)}" x2="${X(cx1)}" y2="${Y(cz)}" stroke="var(--ink)" stroke-width="2" vector-effect="non-scaling-stroke"/><text x="${X(cx0+fs*.3)}" y="${+Y(cz)-fs*.35}" font-size="${fs*.62}" fill="var(--muted)">${ti===1?'Main':'Upper'} concourse</text>`;
-    s+=`<line x1="${X(f.x)}" y1="${Y(f.z)}" x2="${X(f.x)}" y2="${Y(f.z+P.railH)}" stroke="${f.railC<0?'var(--fail)':'var(--ink)'}" stroke-width="2.4" vector-effect="non-scaling-stroke"><title>Guard ${L(P.railH)}</title></line>`;});
+});
+  tiers.forEach(ti=>{const f=rows.find(r=>r.tier===ti);                              // 26 in sightline guard rail at row 1 of every tier
+    s+=`<line x1="${X(f.x)}" y1="${Y(f.z)}" x2="${X(f.x)}" y2="${Y(f.z+P.railH)}" stroke="${f.railC<0?'var(--fail)':'var(--ink)'}" stroke-width="2.4" vector-effect="non-scaling-stroke"><title>Guard rail ${L(P.railH)}</title></line>`
+      +`<line x1="${X(f.x-120)}" y1="${Y(f.z+P.railH)}" x2="${X(f.x+120)}" y2="${Y(f.z+P.railH)}" stroke="${f.railC<0?'var(--fail)':'var(--ink)'}" stroke-width="2.4" vector-effect="non-scaling-stroke"/>`
+      +`<text x="${(+X(f.x)-fs*.25).toFixed(0)}" y="${(+Y(f.z+P.railH)-fs*.2).toFixed(0)}" font-size="${(fs*.5).toFixed(0)}" fill="var(--muted)" text-anchor="end">${inchText(P.railH)} guard rail</text>`;});
   rows.forEach(r=>{const tf=Math.min(fs*.28,r.T*.3);                               // row numbers: above their tread, clear of the riser behind
     s+=`<text x="${X(r.x+r.T*.35)}" y="${(+Y(r.z)-tf*.3).toFixed(0)}" font-size="${tf.toFixed(0)}" fill="var(--ink)" opacity=".8" text-anchor="middle" font-weight="600">${r.row}</text>`;});
   rows.forEach(r=>s+=`<line x1="${X(r.ex)}" y1="${Y(r.ez)}" x2="${X(0)}" y2="${Y(0)}" stroke="${status(r)==='pass'||status(r)==='front'?'var(--sl-ok)':'var(--sl-low)'}" stroke-width="0.7" vector-effect="non-scaling-stroke"/>`);   // sightlines by C-value only: blue meets the minimum, red is below it
@@ -1273,6 +1272,7 @@ function drawDetail(all,o={}){
     +`<text x="${f1(+X(0)+r0.x/2)}" y="${f1(+Y(0)+band/2+fs*.25)}" font-size="${f1(fs*.65)}" fill="#fff" font-weight="600" text-anchor="middle">Buffer</text>`
     +`<line x1="${X(0)}" y1="${f1(+Y(0)+band)}" x2="${X(0)}" y2="${f1(+Y(0)-fs*1.6)}" stroke="${FOCAL}" stroke-width="2.4" vector-effect="non-scaling-stroke"/><circle cx="${X(0)}" cy="${Y(0)}" r="${f1(fs*.22)}" fill="var(--ink)"/>`;
   s+=`<polygon points="${profileOf(rs,0).map(p=>X(p[0])+','+Y(p[1])).join(' ')}" fill="var(${r0.seat==='bench'?'--seat-bench':'--seat-chair'})" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+  s+=`<line x1="${X(r0.x)}" y1="${Y(r0.z)}" x2="${X(r0.x)}" y2="${Y(r0.z+P.railH)}" stroke="var(--ink)" stroke-width="2" vector-effect="non-scaling-stroke"/><line x1="${X(r0.x-90)}" y1="${Y(r0.z+P.railH)}" x2="${X(r0.x+90)}" y2="${Y(r0.z+P.railH)}" stroke="var(--ink)" stroke-width="2" vector-effect="non-scaling-stroke"/>`;   // 26 in guard rail
   // sightlines to the point of focus
   rs.forEach((r,i)=>{const e=ey[i],C=Cs[i],ok=C==null||C>=r.target-0.05;
     s+=`<line x1="${X(e.x)}" y1="${Y(e.z)}" x2="${X(0)}" y2="${Y(0)}" stroke="var(${ok?'--sl-ok':'--sl-low'})" stroke-width="0.6" opacity=".8" vector-effect="non-scaling-stroke"/>`;});
@@ -1326,12 +1326,18 @@ function drawIso(){
       faces.push({q,d:q.reduce((a,p)=>a+p[0]+p[1]+p[2],0)/4,fill:`rgb(${base.map(v=>Math.round(v*k)).join(',')})`});}}}});
   const ground=(poly,fill,d)=>({q:poly.map(([x,y])=>R([x,y,0])),d:d,fill,ground:true});
   const G=rectGeo(P),buf=zoned(P)?(()=>{const t=ZR.T.find(r=>r.tier===0),dd=t?t.x/1000:0,s=G.side;return [[s.L.p[0]-dd,s.T.p[1]-dd],[s.R.p[0]+dd,s.T.p[1]-dd],[s.R.p[0]+dd,s.B.p[1]+dd],[s.L.p[0]-dd,s.B.p[1]+dd]].map(([x,y])=>[x,-y]);})():null;
-  const gf=[];if(buf)gf.push(ground(buf,css('--grass2')||'#76BA1B',-1e9));gf.push(ground(bp,css('--pitch')||'#4C9A2A',-1e9+1));
+  const gf=[];if(buf)gf.push(ground(buf,css('--grass2')||'#76BA1B',-1e9));
   faces.sort((a,b)=>a.d-b.d);
   const all=[...gf,...faces],pts=all.flatMap(f=>f.q.map(pj)),xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
   const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),pad=(x1-x0)*.04,W=x1-x0+2*pad,H=y1-y0+2*pad,f=v=>v.toFixed(2);
   let svg=`<svg viewBox="${f(x0-pad)} ${f(y0-pad)} ${f(W)} ${f(H)}" role="img" aria-label="Isometric view of the bowl from the ${ISOVIEW}">`;
-  for(const fc of all){const p=fc.q.map(pj);svg+=`<polygon points="${p.map(([x,y])=>f(x)+','+f(y)).join(' ')}" fill="${fc.fill}" stroke="${fc.fill}" stroke-width="0.6" vector-effect="non-scaling-stroke"/>`;}
+  // ground plane: plan (screen y down) -> model (y up) -> rotation -> isometric, as one affine matrix
+  const c30v=Math.cos(Math.PI/6),M=[c30v*(cr-sr),.5*(cr+sr),c30v*(sr+cr),.5*(sr-cr)],Sp=SPORTS[P.sport];
+  const clip=buf?`<clipPath id="isoClip"><polygon points="${buf.map(([x,y])=>`${x.toFixed(2)},${(-y).toFixed(2)}`).join(' ')}"/></clipPath>`:'';   // field drawing kept inside the buffer
+  const fieldSvg=`<g transform="matrix(${M.map(v=>v.toFixed(6)).join(' ')} 0 0)">${clip}<g${buf?' clip-path="url(#isoClip)"':''}>${Sp.draw(P,Pen((x1-x0)/700))}</g></g>`;
+  let first=true;
+  for(const fc of all){if(!fc.ground&&first){svg+=fieldSvg;first=false;}const p=fc.q.map(pj);svg+=`<polygon points="${p.map(([x,y])=>f(x)+','+f(y)).join(' ')}" fill="${fc.fill}" stroke="${fc.fill}" stroke-width="0.6" vector-effect="non-scaling-stroke"/>`;}
+  if(first)svg+=fieldSvg;
   svg+=`<polygon points="${bp.map(([x,y])=>pj(R([x,y,0]))).map(([x,y])=>f(x)+','+f(y)).join(' ')}" fill="none" stroke="${FOCAL}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`;
   // stand labels above the top row, and a north arrow along the model's -X axis
   const fsz=W/38;
@@ -1366,6 +1372,14 @@ function secStation(S,st){const sd=S.sec,dot=q=>q[2]*sd[0]+q[3]*sd[1],mx=Math.ma
 function sectionAt(){if(!zoned(P))return secStation(SPORTS[P.sport],stations(boundary(P)));const s=rectGeo(P).side[P.sec];
   return [(s.p[0]+s.q[0])/2,(s.p[1]+s.q[1])/2,s.n[0],s.n[1]];}
 // Buffer zone in plan: from the field out to the front riser of Tier 1 on every side, in the buffer green.
+// Bowl plan dimensions: buffer depth (red line to the Tier 1 front riser) on each side, and at each corner on the diagonal.
+function bufferDims(){if(!zoned(P))return [];const G=rectGeo(P),out=[];
+  GEO.forEach((k,i)=>{const r=ZR[k].find(r=>r.tier===0);if(!r)return;const d=r.x/1000,s=G.side[k],f=0.68,p=[s.p[0]+(s.q[0]-s.p[0])*f,s.p[1]+(s.q[1]-s.p[1])*f];
+    out.push({p,q:[p[0]+s.n[0]*d,p[1]+s.n[1]*d],off:0});
+    const nk=GEO[(i+1)%4],n2=G.side[nk].n,u=[(s.q[0]-s.p[0]),(s.q[1]-s.p[1])],ul=Math.hypot(...u),fc=[s.q[0]+u[0]/ul*G.R,s.q[1]+u[1]/ul*G.R];
+    const dg=[(s.n[0]+n2[0])/Math.SQRT2,(s.n[1]+n2[1])/Math.SQRT2],rc=G.R*(Math.SQRT2-1);
+    const c0=[fc[0]-dg[0]*rc,fc[1]-dg[1]*rc];out.push({p:c0,q:[c0[0]+dg[0]*d,c0[1]+dg[1]*d],off:0});});
+  return out;}
 function bufferFill(){if(PLAN!=='bowl')return '';
   if(!zoned(P)){const t1=ZR.T.find(r=>r.tier===0);if(!t1)return '';return `<path d="${ptsPath(offsetPts(stations(boundary(P)),t1.x/1000))}" fill="var(--grass2)"/>`;}
   const G=rectGeo(P),d=k=>{const r=ZR[k].find(r=>r.tier===0);return r?r.x/1000:0;},s=G.side;
@@ -1402,7 +1416,7 @@ function drawPlan(o={}){
   const cs=[[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map(([x,y])=>rotPt(x,y,t)),vx0=Math.min(...cs.map(c=>c[0])),vy0=Math.min(...cs.map(c=>c[1])),
     vW=Math.max(...cs.map(c=>c[0]))-vx0,vH=Math.max(...cs.map(c=>c[1]))-vy0;
   let s=`<svg viewBox="${vx0.toFixed(2)} ${vy0.toFixed(2)} ${vW.toFixed(2)} ${vH.toFixed(2)}"${vH>vW*1.05?' class="portrait"':''} role="img" aria-label="${S.org} ${S.name} ${PLAN==='field'?'field layout':'bowl plan'}, north up">`;
-  let body=bufferFill()+S.draw(P,g)+rings+rowLines+`<path d="${ptsPath(bnd)}" fill="none" stroke="${FOCAL}" stroke-width="${(3.4*g.k).toFixed(3)}" stroke-linejoin="round"/>`,over='';
+  let body=bufferFill()+S.draw(P,g)+rings+rowLines+(PLAN==='bowl'?drawDims(bufferDims(),g,fs*.8):'')+`<path d="${ptsPath(bnd)}" fill="none" stroke="${FOCAL}" stroke-width="${(3.4*g.k).toFixed(3)}" stroke-linejoin="round"/>`,over='';
   if(PLAN==='bowl'){const sec=sectionAt(),ex=sec[0]+sec[2]*(Rmax+1.5),ey=sec[1]+sec[3]*(Rmax+1.5),lf=W/45;
     const rf=W/105;                                                  // row-number text height (plan metres)
     const at=zoned(P)?GEO.map(k=>{const sd=rectGeo(P).side[k],f=isSide(k)?0.22:0.3;return [k,[sd.p[0]+(sd.q[0]-sd.p[0])*f,sd.p[1]+(sd.q[1]-sd.p[1])*f,sd.n[0],sd.n[1],(sd.q[0]-sd.p[0])/Math.hypot(sd.q[0]-sd.p[0],sd.q[1]-sd.p[1]),(sd.q[1]-sd.p[1])/Math.hypot(sd.q[0]-sd.p[0],sd.q[1]-sd.p[1])]];})

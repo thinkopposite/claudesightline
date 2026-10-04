@@ -152,7 +152,7 @@ a.btnlink:hover{border-color:var(--ink)}
     <p class="verdict" id="verdict"></p>
     <div class="planhead" style="margin-top:6px"><h3 id="secTitle">Section</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="secTabs" role="group" aria-label="Section through"></div><div class="seg" id="modeTabs" role="group" aria-label="Sightline mode"><button data-mode="sit" class="on" aria-pressed="true">Sitting</button><button data-mode="stand" aria-pressed="false">Standing</button></div><div class="seg" role="group" aria-label="Print section"><button id="prArchE">Print ARCH E</button><button id="prTab">Print Tabloid</button></div></div></div>
     <div class="panel" id="section"></div>
-    <div class="planhead" style="margin-top:10px"><h3 id="detTitle">Sightline detail</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="detTabs" role="group" aria-label="Detail sightlines"><button data-dm="sit" class="on" aria-pressed="true">Sitting</button><button data-dm="stand" aria-pressed="false">Standing</button></div><div class="seg"><button id="prPlanDet">Print PDF set</button></div></div></div>
+    <div class="planhead" style="margin-top:10px"><h3 id="detTitle">Sightline detail</h3><div style="display:flex;gap:10px;flex-wrap:wrap"><div class="seg" id="detTabs" role="group" aria-label="Detail sightlines"><button data-dm="sit" class="on" aria-pressed="true">Sitting</button><button data-dm="stand" aria-pressed="false">Standing</button></div><div class="seg"><button id="prPlanDet">Download project set</button></div></div></div>
     <div class="panel" id="detail"></div>
     <div class="legend">
       <span><i style="background:var(--sl-ok);height:1px"></i>Sightline, C-value at or above minimum</span>
@@ -186,7 +186,7 @@ a.btnlink:hover{border-color:var(--ink)}
 // Field layouts drawn from each governing body's published dimensions (metres internally).
 // Plan coordinates: x along the field's length, y across (SVG y points down), origin at field centre.
 const FT=0.3048,YD=0.9144,IN=0.0254,ROPE_GAP=3*YD;
-const COL_RED='#C8102E',COL_BLUE='#0033A0',COL_POST='#F2C200',COL_LIMIT='#E8C33A';
+const COL_RED='#C8102E',COL_BLUE='#0033A0',COL_POST='#F2C200',COL_LIMIT='#FFE600';
 
 // ---------- convex-boundary geometry (the bowl wraps any convex field edge) ----------
 function rrectPts(a,b,r,n=12){
@@ -281,19 +281,19 @@ function gridiron(o){
       const yL=6*FT+9*FT+4*IN,yB=30*FT+4*IN+6*FT,xE=a+12*FT,x25=25*YD,x30=20*YD;
       s+=`<path d="M${-a-6*FT} ${-b-6*FT}H${a+6*FT}V${b+6*FT}H${-a-6*FT}ZM${-a} ${-b}V${b}H${a}V${-b}Z" fill="var(--mark)" fill-rule="evenodd"/>`;
       s+=mirror(sg=>{const y1=sg*(b+yL),y2=sg*(b+yB),yc=sg*(b+12*FT),yw=sg*(b+yL-3*FT);
-        return g.poly([[-xE,y1],[-x25,y1],[-x30,y2],[x30,y2],[x25,y1],[xE,y1]],{c:COL_LIMIT,w:1.4,d:[2*FT,1*FT]},false)
-          +g.l(-x25,yc,x25,yc,{c:COL_LIMIT,w:1.4})                                               // coaches' line, 6 ft behind the border
+        return g.poly([[-xE,y1],[-x25,y1],[-x30,y2],[x30,y2],[x25,y1],[xE,y1]],{c:COL_LIMIT,w:0.7,d:[2*FT,1*FT]},false)
+          +g.l(-x25,yc,x25,yc,{c:COL_LIMIT,w:0.7})                                               // coaches' line, 6 ft behind the border
           +g.l(-xE,yw,-x25,yw,{w:.8,d:[4*FT,2*FT]})+g.l(x25,yw,xE,yw,{w:.8,d:[4*FT,2*FT]})        // broken white line, 3 ft inside the yellow
           +g.l(-x30,sg*(b+30*FT+4*IN),x30,sg*(b+30*FT+4*IN),{c:'var(--muted)',w:.8,d:[1*FT,1*FT]})    // bench line
           +g.t(0,sg*(b+21*FT),'TEAM AREA',1.3,{c:COL_LIMIT,base:'middle',wt:650});});
-      s+=mirror(sg=>g.l(sg*xE,-b-yL,sg*xE,b+yL,{c:COL_LIMIT,w:1.4,d:[2*FT,1*FT]}));
+      s+=mirror(sg=>g.l(sg*xE,-b-yL,sg*xE,b+yL,{c:COL_LIMIT,w:0.7,d:[2*FT,1*FT]}));
     }else{ // NCAA Rule 1-2: limit line 12 ft (12 in dashes at 24 in intervals), coaching line 6 ft, team area
       s+=mirror(sg=>{const y6=sg*(b+6*FT),y12=sg*(b+12*FT),y36=sg*(b+36*FT),y42=sg*(b+42*FT),x=30*YD;
-        let h=g.poly([[-a-12*FT,y12],[-x-6*FT,y12],[-x-6*FT,y42],[x+6*FT,y42],[x+6*FT,y12],[a+12*FT,y12]],{c:COL_LIMIT,w:1,d:[1*FT,2*FT]},false)
-          +g.r(-x,y12,x,y36,{c:COL_LIMIT,w:1.2})+g.l(-x,y6,x,y6,{w:1.3});
+        let h=g.poly([[-a-12*FT,y12],[-x-6*FT,y12],[-x-6*FT,y42],[x+6*FT,y42],[x+6*FT,y12],[a+12*FT,y12]],{c:COL_LIMIT,w:0.5,d:[1*FT,2*FT]},false)
+          +g.r(-x,y12,x,y36,{c:COL_LIMIT,w:0.6})+g.l(-x,y6,x,y6,{w:1.3});
         for(let xx=-x;xx<x-1e-6;xx+=5*YD)h+=g.l(xx,y12,xx+6*FT,y6,{w:.8});
         return h+g.t(0,sg*(b+24*FT),'TEAM AREA',1.3,{c:COL_LIMIT,base:'middle',wt:650});});
-      s+=mirror(sg=>g.l(sg*(a+12*FT),-b-12*FT,sg*(a+12*FT),b+12*FT,{c:COL_LIMIT,w:1,d:[1*FT,2*FT]}));
+      s+=mirror(sg=>g.l(sg*(a+12*FT),-b-12*FT,sg*(a+12*FT),b+12*FT,{c:COL_LIMIT,w:0.5,d:[1*FT,2*FT]}));
     }
     s+=g.r(-a,-b,a,b,{w:1.6});
     for(let n=0;n<=20;n++){const x=-gl+n*5*YD;s+=g.l(x,-b,x,b,{w:n%20?1:1.8});}
@@ -939,7 +939,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.10.03.7';
+const VERSION='2026.10.03.9';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1192,7 +1192,7 @@ function drawSection(rows,o={}){
     s+=`<line x1="${X(cx0)}" y1="${Y(cz)}" x2="${X(cx1)}" y2="${Y(cz)}" stroke="var(--ink)" stroke-width="2" vector-effect="non-scaling-stroke"/><text x="${X(cx0+fs*.3)}" y="${+Y(cz)-fs*.35}" font-size="${fs*.62}" fill="var(--muted)">${ti===1?'Main':'Upper'} concourse</text>`;
 });
   tiers.forEach(ti=>{const f=rows.find(r=>r.tier===ti);                              // 26 in sightline guard rail at row 1 of every tier
-    s+=`<line x1="${X(f.x)}" y1="${Y(f.z)}" x2="${X(f.x)}" y2="${Y(f.z+P.railH)}" stroke="#000000" stroke-width="4" stroke-linecap="square" vector-effect="non-scaling-stroke"><title>Guard rail ${L(P.railH)}</title></line>`
+    s+=`<rect x="${X(f.x-25.4)}" y="${Y(f.z+P.railH)}" width="50.8" height="${P.railH.toFixed(1)}" fill="#000000"><title>Guard rail ${L(P.railH)}, 2 in</title></rect>`
       +`<text x="${(+X(f.x)-fs*.25).toFixed(0)}" y="${(+Y(f.z+P.railH)-fs*.2).toFixed(0)}" font-size="${(fs*.5).toFixed(0)}" fill="var(--muted)" text-anchor="end">${inchText(P.railH)} guard rail</text>`;});
   rows.forEach(r=>{const tf=Math.min(fs*.28,r.T*.3);                               // row numbers: above their tread, clear of the riser behind
     s+=`<text x="${X(r.x+r.T*.35)}" y="${(+Y(r.z)-tf*.3).toFixed(0)}" font-size="${tf.toFixed(0)}" fill="var(--ink)" opacity=".8" text-anchor="middle" font-weight="600">${r.row}</text>`;});
@@ -1204,7 +1204,7 @@ function drawSection(rows,o={}){
   if(w){const i=rows.indexOf(w),p=rows[i-1],zl=p.ez+w.C;
     s+=`<line x1="${X(w.ex)}" y1="${Y(w.ez)}" x2="${X(0)}" y2="${Y(0)}" stroke="var(--ink)" stroke-width="2" vector-effect="non-scaling-stroke"/><line x1="${X(p.ex)}" y1="${Y(p.ez)}" x2="${X(p.ex)}" y2="${Y(zl)}" stroke="var(--ink)" stroke-width="3" vector-effect="non-scaling-stroke"/><text x="${+X(p.ex)-fs*.5}" y="${+Y(zl)-fs*.5}" font-size="${fs*.95}" font-weight="650" fill="var(--ink)" text-anchor="end">Lowest C ${L(w.C)}</text>`;}
   s+=chainDims(rows,tiers,X,Y,fs,band);
-  s+=`<line x1="${X(0)}" y1="${+Y(0)+band}" x2="${X(0)}" y2="${+Y(0)-fs*1.6}" stroke="${FOCAL}" stroke-width="2.6" vector-effect="non-scaling-stroke"/>`;
+  s+=`<line x1="${X(0)}" y1="${+Y(0)+band}" x2="${X(0)}" y2="${+Y(0)-fs*1.6}" stroke="${FOCAL}" stroke-width="1.3" vector-effect="non-scaling-stroke"/>`;
   s+=`<circle cx="${X(0)}" cy="${Y(0)}" r="${dot*1.8}" fill="var(--ink)"/><text x="${X(0)}" y="${(+Y(0)+band+fs*1.05).toFixed(0)}" font-size="${fs*.85}" fill="var(--ink)" text-anchor="middle">Point of focus</text></svg>`;
   return s;
 }
@@ -1269,9 +1269,9 @@ function drawDetail(all,o={}){
   s+=`<rect x="0" y="${Y(0)}" width="${X(0)}" height="${band}" fill="var(--pitch)"/><rect x="${X(0)}" y="${Y(0)}" width="${f1(r0.x)}" height="${band}" fill="var(--grass2)"/>`
     +`<text x="${f1(+X(0)/2)}" y="${f1(+Y(0)+band/2+fs*.25)}" font-size="${f1(fs*.65)}" fill="#fff" font-weight="600" text-anchor="middle">Pitch</text>`
     +`<text x="${f1(+X(0)+r0.x/2)}" y="${f1(+Y(0)+band/2+fs*.25)}" font-size="${f1(fs*.65)}" fill="#fff" font-weight="600" text-anchor="middle">Buffer</text>`
-    +`<line x1="${X(0)}" y1="${f1(+Y(0)+band)}" x2="${X(0)}" y2="${f1(+Y(0)-fs*1.6)}" stroke="${FOCAL}" stroke-width="2.4" vector-effect="non-scaling-stroke"/><circle cx="${X(0)}" cy="${Y(0)}" r="${f1(fs*.22)}" fill="var(--ink)"/>`;
+    +`<line x1="${X(0)}" y1="${f1(+Y(0)+band)}" x2="${X(0)}" y2="${f1(+Y(0)-fs*1.6)}" stroke="${FOCAL}" stroke-width="1.2" vector-effect="non-scaling-stroke"/><circle cx="${X(0)}" cy="${Y(0)}" r="${f1(fs*.22)}" fill="var(--ink)"/>`;
   s+=`<polygon points="${profileOf(rs,0).map(p=>X(p[0])+','+Y(p[1])).join(' ')}" fill="var(${r0.seat==='bench'?'--seat-bench':'--seat-chair'})" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
-  s+=`<line x1="${X(r0.x)}" y1="${Y(r0.z)}" x2="${X(r0.x)}" y2="${Y(r0.z+P.railH)}" stroke="#000000" stroke-width="4" stroke-linecap="square" vector-effect="non-scaling-stroke"/>`;   // 26 in guard rail
+  s+=`<rect x="${X(r0.x-25.4)}" y="${Y(r0.z+P.railH)}" width="50.8" height="${P.railH.toFixed(1)}" fill="#000000"/>`;   // 26 in guard rail, 2 in thick
   // sightlines to the point of focus
   rs.forEach((r,i)=>{const e=ey[i],C=Cs[i],ok=C==null||C>=r.target-0.05;
     s+=`<line x1="${X(e.x)}" y1="${Y(e.z)}" x2="${X(0)}" y2="${Y(0)}" stroke="var(${ok?'--sl-ok':'--sl-low'})" stroke-width="0.6" opacity=".8" vector-effect="non-scaling-stroke"/>`;});
@@ -1340,7 +1340,7 @@ function drawIso(){
     if(fc.edge){const [a,b]=fc.edge.map(pj);svg+=`<polygon points="${p.map(([x,y])=>f(x)+','+f(y)).join(' ')}" fill="${fc.fill}" stroke="${fc.fill}" stroke-width="0.6" vector-effect="non-scaling-stroke"/><line x1="${f(a[0])}" y1="${f(a[1])}" x2="${f(b[0])}" y2="${f(b[1])}" stroke="#000000" stroke-width="0.35" vector-effect="non-scaling-stroke"/>`;continue;}
     svg+=`<polygon points="${p.map(([x,y])=>f(x)+','+f(y)).join(' ')}" fill="${fc.fill}" stroke="${fc.fill}" stroke-width="0.6" vector-effect="non-scaling-stroke"/>`;}
   if(first)svg+=fieldSvg;
-  svg+=`<polygon points="${bp.map(([x,y])=>pj(R([x,y,0]))).map(([x,y])=>f(x)+','+f(y)).join(' ')}" fill="none" stroke="${FOCAL}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`;
+  svg+=`<polygon points="${bp.map(([x,y])=>pj(R([x,y,0]))).map(([x,y])=>f(x)+','+f(y)).join(' ')}" fill="none" stroke="${FOCAL}" stroke-width="0.9" vector-effect="non-scaling-stroke"/>`;
   // stand labels above the top row, and a north arrow along the model's -X axis
   const fsz=W/38;
   if(zoned(P))GEO.forEach(k=>{const zr=ZR[k];if(!zr.length)return;const t=zr[zr.length-1],s0=G.side[k],d=(t.x+t.T)/1000+4,mx=(s0.p[0]+s0.q[0])/2+s0.n[0]*d,my=-((s0.p[1]+s0.q[1])/2+s0.n[1]*d);
@@ -1356,7 +1356,7 @@ let PLAN='bowl',PLANROT=0;
 const planRot=()=>zoned(P)&&P.planOri!=='h'?90:0;               // vertical: north up; landscape: north left
 const rotPt=(x,y,t)=>{const r=t*Math.PI/180,c=Math.round(Math.cos(r)),s=Math.round(Math.sin(r));return [x*c-y*s,x*s+y*c];};
 const upright=r=>{let x=r+PLANROT;while(x>=90)x-=180;while(x<-90)x+=180;return x-PLANROT;};   // vertical text reads bottom to top   // text angle that reads upright after rotation
-const FOCAL='#FF0000';
+const FOCAL='#FF1A1A';
 // Dimensions of the point-of-focus boundary only: the line every sightline and front-row distance is measured from.
 function focalDims(P){
   const S=SPORTS[P.sport],b=boundary(P),xs=b.map(p=>p[0]),ys=b.map(p=>p[1]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),o=S.pad+4;
@@ -1418,7 +1418,7 @@ function drawPlan(o={}){
   const cs=[[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map(([x,y])=>rotPt(x,y,t)),vx0=Math.min(...cs.map(c=>c[0])),vy0=Math.min(...cs.map(c=>c[1])),
     vW=Math.max(...cs.map(c=>c[0]))-vx0,vH=Math.max(...cs.map(c=>c[1]))-vy0;
   let s=`<svg viewBox="${vx0.toFixed(2)} ${vy0.toFixed(2)} ${vW.toFixed(2)} ${vH.toFixed(2)}"${vH>vW*1.05?' class="portrait"':''} role="img" aria-label="${S.org} ${S.name} ${PLAN==='field'?'field layout':'bowl plan'}, north up">`;
-  let body=bufferFill()+S.draw(P,g)+rings+rowLines+(PLAN==='bowl'?drawDims(bufferDims(),g,fs*.8):'')+`<path d="${ptsPath(bnd)}" fill="none" stroke="${FOCAL}" stroke-width="${(3.4*g.k).toFixed(3)}" stroke-linejoin="round"/>`,over='';
+  let body=bufferFill()+S.draw(P,g)+rings+rowLines+(PLAN==='bowl'?drawDims(bufferDims(),g,fs*.8):'')+`<path d="${ptsPath(bnd)}" fill="none" stroke="${FOCAL}" stroke-width="${(1.7*g.k).toFixed(3)}" stroke-linejoin="round"/>`,over='';
   if(PLAN==='bowl'){const sec=sectionAt(),ex=sec[0]+sec[2]*(Rmax+1.5),ey=sec[1]+sec[3]*(Rmax+1.5),lf=W/45;
     const rf=W/105;                                                  // row-number text height (plan metres)
     const at=zoned(P)?GEO.map(k=>{const sd=rectGeo(P).side[k],f=isSide(k)?0.22:0.3;return [k,[sd.p[0]+(sd.q[0]-sd.p[0])*f,sd.p[1]+(sd.q[1]-sd.p[1])*f,sd.n[0],sd.n[1],(sd.q[0]-sd.p[0])/Math.hypot(sd.q[0]-sd.p[0],sd.q[1]-sd.p[1]),(sd.q[1]-sd.p[1])/Math.hypot(sd.q[0]-sd.p[0],sd.q[1]-sd.p[1])]];})
@@ -1594,7 +1594,8 @@ const PLOT_SCALES=()=>imperial()?[[3,'3"'],[1.5,'1 1/2"'],[1,'1"'],[3/4,'3/4"'],
 function trueStrokes(svg,unitPerIn){                           // screen-pixel line weights become paper weights (1 px = 1/96 in)
   return svg.replace(/stroke-width="([\d.]+)"( stroke-dasharray="[^"]*")?( opacity="[^"]*")? vector-effect="non-scaling-stroke"/g,(m,w,d,o)=>`stroke-width="${(Math.max(+w,0.5)/96*unitPerIn).toFixed(4)}"${d?d.replace(/"([\d. ]+)"/,(q,v)=>'"'+v.split(' ').map(n=>(+n/96*unitPerIn).toFixed(3)).join(' ')+'"'):''}${o||''}`);}
 // One drawing per landscape sheet at the largest standard scale that fits inside the border; graphic scale at the lower left.
-function plotOne(sh,what,maxIn){                 // maxIn: largest scale allowed, inches per foot (e.g. 1/16)
+function plotOne(sh,what,maxIn){
+  if(what==='section')return plotSection(sh);                 // maxIn: largest scale allowed, inches per foot (e.g. 1/16)
   const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title-sb;
   let fit=null,svg0=null;
   if(what==='plan'){const keep=[P.planOri,PLAN];P.planOri='h';PLAN='bowl';svg0=drawPlan({tight:true});P.planOri=keep[0];PLAN=keep[1];
@@ -1618,6 +1619,22 @@ function plotOne(sh,what,maxIn){                 // maxIn: largest scale allowed
     +trueStrokes(fit.svg,fit.u).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(fit.w)}" height="${f(fit.h)}" preserveAspectRatio="xMidYMid meet" `)+g+tb+'</svg>';
   const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:fit.sc.label,sheet:sh,what};
 }
+// Bowl section (both tiers, the side picked above the section) on one landscape sheet, largest standard scale that fits.
+function plotSection(sh){const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title-sb;let fit=null;
+  for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,svg=drawSection(ZR[P.sec],{fs:sh.txt*25.4*sc.ratio}),v=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number),w=v[0]*k,h=v[1]*k;
+    if(w<=aw&&h<=ah){fit={sc,k,w,h,svg,u:25.4*sc.ratio};break;}}
+  if(!fit)return null;
+  const x=B+(aw-fit.w)/2,y=B+(ah-fit.h)/2,per=(imperial()?304.8:1000)*fit.k,divs=[1,2,5,10,20,25,50,100,200,500];let u=divs[0];for(const q of divs)if(q*5*per<=sh.w*.22)u=q;
+  const gy=sh.h-B-title-sb+sh.txt*1.6,bh=sh.txt*.7;let g=`<text x="${f(B)}" y="${f(gy)}" font-size="${f(sh.txt*1.1)}" font-weight="700">Scale ${fit.sc.label}</text>`;
+  for(let i=0;i<5;i++)g+=`<rect x="${f(B+i*u*per)}" y="${f(gy+sh.txt*.5)}" width="${f(u*per)}" height="${f(bh)}" fill="${i%2?'#fff':'#000'}" stroke="#000" stroke-width="${f(sh.txt*.06)}"/>`;
+  for(let i=0;i<=5;i++)g+=`<text x="${f(B+i*u*per)}" y="${f(gy+sh.txt*.5+bh+sh.txt*1.05)}" font-size="${f(sh.txt*.85)}" text-anchor="middle">${i*u}</text>`;
+  g+=`<text x="${f(B+5*u*per+sh.txt*.5)}" y="${f(gy+sh.txt*.5+bh*.9)}" font-size="${f(sh.txt*.85)}">${imperial()?'feet':'metres'}</text>`;
+  const Sp=SPORTS[P.sport],ty=sh.h-B-sh.txt*.4;
+  const tb=`<text x="${f(sh.w-B)}" y="${f(ty-sh.txt*1.6)}" font-size="${f(sh.txt*1.5)}" font-weight="800" text-anchor="end">Sightline Schematic: Bowl section, ${zoneName(P,P.sec)}, ${P.eyeMode==='stand'?'standing':'sitting'}</text>`
+    +`<text x="${f(sh.w-B)}" y="${f(ty)}" font-size="${f(sh.txt*.95)}" text-anchor="end">${Sp.name} (${Sp.org}) | ${optName()} | ${fmt(M.cap)} seats | Scale ${fit.sc.label} | ${sh.name} landscape | ${new Date().toLocaleDateString()}</text>`;
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${f(sh.w)}in" height="${f(sh.h)}in" viewBox="0 0 ${f(sh.w)} ${f(sh.h)}" font-family="Archivo, 'Arial Narrow', Arial, sans-serif"><rect width="${f(sh.w)}" height="${f(sh.h)}" fill="#fff"/>`
+    +trueStrokes(fit.svg,fit.u).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(fit.w)}" height="${f(fit.h)}" preserveAspectRatio="xMidYMid meet" `)+g+tb+'</svg>';
+  const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:fit.sc.label,sheet:sh,what:'section'};}
 // Seat count, one 11 x 17 portrait page per tier; the grand totals go on the last tier's page.
 function tablePages(){const {head,out}=seatCount(),Sp=SPORTS[P.sport],pages=[];
   const full=countTableHTML().match(/<tbody>([\s\S]*)<\/tbody>/)[1],trs=full.match(/<tr[\s\S]*?<\/tr>/g),thead=countTableHTML().match(/<thead>[\s\S]*<\/thead>/)[0];
@@ -1660,33 +1677,38 @@ async function exportPdfSet(){
   try{
     await loadJS('vendor/jspdf.umd.min.js');await loadJS('vendor/svg2pdf.umd.min.js');
     const [reg,bold]=await Promise.all([loadB64('vendor/fonts/DejaVuSansCondensed.ttf'),loadB64('vendor/fonts/DejaVuSansCondensed-Bold.ttf')]);
-    const sheets=PLOT_SHEETS(),big=sheets[1],small=sheets[0];
-    const draw=[plotOne(big,'detail'),plotOne(small,'detail'),plotOne(big,'plan',1/16),plotOne(small,'plan')];
-    if(draw.some(p=>!p))throw new Error('A drawing does not fit its sheet at any standard scale.');
-    const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'l',unit:'in',format:[draw[0].sheet.w,draw[0].sheet.h]});
+    // order: 11x17 section, plan, table pages; then ARCH E section, plan, table pages (A3 / A0 in metric)
+    const sheets=PLOT_SHEETS(),small=sheets[0],big=sheets[1];
+    const sets=[[small,[plotOne(small,'section'),plotOne(small,'plan')],{pw:imperial()?11:297/25.4,ph:imperial()?17:420/25.4,m:0.25}],
+                [big,[plotOne(big,'section'),plotOne(big,'plan',1/16)],{pw:imperial()?36:841/25.4,ph:imperial()?48:1189/25.4,m:0.5}]];
+    if(sets.some(([,d])=>d.some(p=>!p)))throw new Error('A drawing does not fit its sheet at any standard scale.');
+    const first=sets[0][1][0],{jsPDF}=window.jspdf,doc=new jsPDF({orientation:'l',unit:'in',format:[first.sheet.w,first.sheet.h]});
     doc.addFileToVFS('DVS.ttf',reg);doc.addFont('DVS.ttf','DVS','normal');doc.addFileToVFS('DVSB.ttf',bold);doc.addFont('DVSB.ttf','DVS','bold');
     const host=document.createElement('div');host.style.cssText='position:fixed;left:-99999px;top:0;width:10px;height:10px;overflow:hidden';document.body.appendChild(host);
-    for(let i=0;i<draw.length;i++){const p=draw[i];if(i)doc.addPage([p.sheet.w,p.sheet.h],'l');
-      host.innerHTML=pdfReadySvg(p.svg);await doc.svg(host.firstElementChild,{x:0,y:0,width:p.sheet.w,height:p.sheet.h});}
+    let started=false;
+    for(const [sh,draws,tab] of sets){
+      for(const p of draws){if(started)doc.addPage([p.sheet.w,p.sheet.h],'l');started=true;
+        host.innerHTML=pdfReadySvg(p.svg);await doc.svg(host.firstElementChild,{x:0,y:0,width:p.sheet.w,height:p.sheet.h});}
+      pdfTables(doc,{...tab,fit:true});}
     host.remove();
-    pdfTables(doc);
-    offer(slug()+'.pdf',doc.output('blob'));
-    toast(`PDF set saved: detail ${draw[0].scale} / ${draw[1].scale}, plan ${draw[2].scale} / ${draw[3].scale}.`);
+    const draw=sets.flatMap(([,d])=>d);
+    const name=`${SPORTS[P.sport].name}_${slug()}.pdf`;offer(name,doc.output('blob'));
+    toast(`${name} saved: section ${draw[0].scale} / ${draw[2].scale}, plan ${draw[1].scale} / ${draw[3].scale}.`);
   }catch(e){toast('The PDF set could not be built: '+e.message);}
   finally{btn.disabled=false;}
 }
 // seat count tables drawn straight into the PDF: 11 x 17 portrait (A3 in metric), one page per tier
 function pdfTables(doc,o={}){
-  const {head,out}=seatCount(),Sp=SPORTS[P.sport],pw=imperial()?11:297/25.4,ph=imperial()?17:420/25.4,m=o.m??0.6;
+  const {head,out}=seatCount(),Sp=SPORTS[P.sport],pw=o.pw||(imperial()?11:297/25.4),ph=o.ph||(imperial()?17:420/25.4),m=o.m??0.6;
   const rows=out.filter(o=>o.kind==='row'),mins=['cs','ct'].map(k=>Math.min(...rows.map(o=>o[k]).filter(v=>v!=null)));
   const cols0=[['Row',2.3,'left'],['C sitting',1.05],['C standing',1.1],...head.map(h=>[h,0.85]),['Row total',1.0]],w0=cols0.reduce((a,c)=>a+c[1],0);
   const k=o.fit?(pw-2*m)/w0:1,cols=cols0.map(([n,w,al])=>[n,w*k,al]),rh=0.24*k,fz=10*k;   // fit to the paper width
   const cfmt=v=>v==null?'':imperial()?(v/25.4).toFixed(4)+'"':v.toFixed(2)+' mm';
   const groups=[];let cur=[],ti=0;out.forEach(o=>{cur.push(o);if(o.kind==='sub'){ti++;if(ti<P.tierCount){groups.push(cur);cur=[];}}});groups.push(cur);
-  groups.forEach((g,gi)=>{doc.addPage([pw,ph],'p');let y=m+0.3;
-    doc.setFont('DVS','bold');doc.setFontSize(16);doc.setTextColor(0);doc.text(`Sightline Schematic: Seat Count, Tier ${gi+1}`,m,y);y+=0.28;
-    doc.setFont('DVS','normal');doc.setFontSize(9);doc.setTextColor(60);
-    doc.text(`${Sp.name} (${Sp.org}) | ${optName()} | Seats Lost to Aisles and Vomitories ${P.loss}% | C-Values: Lowest Blue, Below the Minimum Red | ${new Date().toLocaleString()}`,m,y);y+=0.42;
+  groups.forEach((g,gi)=>{doc.addPage([pw,ph],'p');let y=m+0.3*k;
+    doc.setFont('DVS','bold');doc.setFontSize(16*k);doc.setTextColor(0);doc.text(`Sightline Schematic: Seat Count, Tier ${gi+1}`,m,y);y+=0.28*k;
+    doc.setFont('DVS','normal');doc.setFontSize(9*k);doc.setTextColor(60);
+    doc.text(`${Sp.name} (${Sp.org}) | ${optName()} | Seats Lost to Aisles and Vomitories ${P.loss}% | C-Values: Lowest Blue, Below the Minimum Red | ${new Date().toLocaleString()}`,m,y);y+=0.42*k;
     const cell=(vals,bold,fill,colors)=>{if(fill){doc.setFillColor(238,242,248);doc.rect(m,y-rh*.72,pw-2*m,rh,'F');}
       let x=m;doc.setFont('DVS',bold?'bold':'normal');doc.setFontSize(fz);
       cols.forEach(([n,w,al],i)=>{const c=(colors&&colors[i])||[0,0,0];doc.setTextColor(...c);
@@ -1724,7 +1746,7 @@ $('cntXlsx').onclick=()=>{const {head,out}=seatCount(),Sp=SPORTS[P.sport];
   const rows=[['Sightline Schematic: seat count by row'],['Sport',`${Sp.name} (${Sp.org})`],['Option',optName()],['Seats lost to aisles and vomitories (%)',P.loss],[],
     ['Row','C sitting (in)','C standing (in)',...head,'Row total'],...out.map(o=>[o.label,o.cs==null?'':+(o.cs/25.4).toFixed(4),o.ct==null?'':+(o.ct/25.4).toFixed(4),...o.v,o.t])];
   const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:44},{wch:14},{wch:15},...head.map(()=>({wch:10})),{wch:12}];
-  XLSX.utils.book_append_sheet(wb,ws,'Seat count');offer(slug()+'.xlsx',new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})]));};
+  XLSX.utils.book_append_sheet(wb,ws,'Seat count');offer('C-Value_'+slug()+'.xlsx',new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})]));};
 $('cntPrint').onclick=async()=>{const btn=$('cntPrint');btn.disabled=true;toast('Building the seat count PDF…');
   try{await loadJS('vendor/jspdf.umd.min.js');
     const [reg,bold]=await Promise.all([loadB64('vendor/fonts/DejaVuSansCondensed.ttf'),loadB64('vendor/fonts/DejaVuSansCondensed-Bold.ttf')]);

@@ -939,7 +939,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.10.03.10';
+const VERSION='2026.10.03.11';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1587,10 +1587,13 @@ $('prTab').onclick=()=>printSheet('tabloid');
 // The bowl plan (landscape, north left) and the Tier 1 sightline detail each take the largest standard scale that fits
 // their share of the sheet. The split (side by side or stacked) that gives the plan its largest scale wins, then the detail's.
 // Each drawing has its own graphic scale.
-const PLOT_SHEETS=()=>imperial()?[{name:'Tabloid',w:17,h:11,B:0.25,txt:0.07},{name:'ARCH E',w:48,h:36,B:1,txt:0.16}]
-  :[{name:'A3',w:420/25.4,h:297/25.4,B:0.25,txt:0.07},{name:'ISO A0',w:1189/25.4,h:841/25.4,B:1,txt:0.16}];
-const PLOT_SCALES=()=>imperial()?[[3,'3"'],[1.5,'1 1/2"'],[1,'1"'],[3/4,'3/4"'],[1/2,'1/2"'],[3/8,'3/8"'],[1/4,'1/4"'],[3/16,'3/16"'],[1/8,'1/8"'],[3/32,'3/32"'],[1/16,'1/16"'],[1/32,'1/32"'],[1/64,'1/64"'],[1/128,'1/128"']].map(([v,t])=>({ratio:12/v,label:`${t} = 1'-0"`}))   // 1/128 only as a last resort
-  :[20,25,50,100,200,250,500,1000,2000,5000].map(r=>({ratio:r,label:`1:${r}`}));
+const PLOT_SHEETS=()=>imperial()?[{name:'Tabloid',w:17,h:11,B:0.25,txt:0.07},{name:'ARCH E',w:48,h:36,B:0.25,txt:0.16}]
+  :[{name:'A3',w:420/25.4,h:297/25.4,B:0.25,txt:0.07},{name:'ISO A0',w:1189/25.4,h:841/25.4,B:0.25,txt:0.16}];   // minimum margin: 1/4 in
+// Revit's standard printing scales, largest first (inches on paper per foot)
+const REVIT_STD=[[1/2,'1/2" = 1\'-0"'],[3/8,'3/8" = 1\'-0"'],[1/4,'1/4" = 1\'-0"'],[3/16,'3/16" = 1\'-0"'],[1/8,'1/8" = 1\'-0"'],[1/10,'1" = 10\'-0"'],
+  [3/32,'3/32" = 1\'-0"'],[1/16,'1/16" = 1\'-0"'],[1/20,'1" = 20\'-0"'],[3/64,'3/64" = 1\'-0"'],[1/32,'1/32" = 1\'-0"'],[1/50,'1" = 50\'-0"'],
+  [1/64,'1/64" = 1\'-0"'],[1/100,'1" = 100\'-0"'],[1/200,'1" = 200\'-0"']];
+const PLOT_SCALES=()=>imperial()?REVIT_STD.map(([v,t])=>({ratio:12/v,label:t})):[20,25,50,100,200,250,500,1000,2000,5000].map(r=>({ratio:r,label:`1:${r}`}));
 function trueStrokes(svg,unitPerIn){                           // screen-pixel line weights become paper weights (1 px = 1/96 in)
   return svg.replace(/stroke-width="([\d.]+)"( stroke-dasharray="[^"]*")?( opacity="[^"]*")? vector-effect="non-scaling-stroke"/g,(m,w,d,o)=>`stroke-width="${(Math.max(+w,0.5)/96*unitPerIn).toFixed(4)}"${d?d.replace(/"([\d. ]+)"/,(q,v)=>'"'+v.split(' ').map(n=>(+n/96*unitPerIn).toFixed(3)).join(' ')+'"'):''}${o||''}`);}
 // One drawing per landscape sheet at the largest standard scale that fits inside the border; graphic scale at the lower left.
@@ -1620,6 +1623,15 @@ function plotOne(sh,what,maxIn,fixed){        // fixed: use exactly maxIn, even 
     +trueStrokes(fit.svg,fit.u).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(fit.w)}" height="${f(fit.h)}" preserveAspectRatio="xMidYMid meet" `)+g+tb+'</svg>';
   const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:fit.sc.label,sheet:sh,what};
 }
+// Isometric view on one landscape sheet, fitted to the sheet (isometric drawings are not to scale).
+function plotIso(sh,view){const keep=ISOVIEW;ISOVIEW=view;const svg0=drawIso();ISOVIEW=keep;
+  const B=sh.B,f=v=>(+v).toFixed(4),title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title,vb=svg0.match(/viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/).slice(1).map(Number);
+  const k=Math.min(aw/vb[2],ah/vb[3]),w=vb[2]*k,h=vb[3]*k,x=B+(aw-w)/2,y=B+(ah-h)/2,names={SE:'south-east',SW:'south-west',NW:'north-west',NE:'north-east'},Sp=SPORTS[P.sport],ty=sh.h-B-sh.txt*.4;
+  const tb=`<text x="${f(sh.w-B)}" y="${f(ty-sh.txt*1.6)}" font-size="${f(sh.txt*1.5)}" font-weight="800" text-anchor="end">Sightline Schematic: Isometric view from the ${names[view]}</text>`
+    +`<text x="${f(sh.w-B)}" y="${f(ty)}" font-size="${f(sh.txt*.95)}" text-anchor="end">${Sp.name} (${Sp.org}) | ${optName()} | ${fmt(M.cap)} seats | Not to scale | ${sh.name} landscape | ${new Date().toLocaleDateString()}</text>`;
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${f(sh.w)}in" height="${f(sh.h)}in" viewBox="0 0 ${f(sh.w)} ${f(sh.h)}" font-family="Archivo, 'Arial Narrow', Arial, sans-serif"><rect width="${f(sh.w)}" height="${f(sh.h)}" fill="#fff"/>`
+    +trueStrokes(svg0,1/k).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="xMidYMid meet" `)+tb+'</svg>';
+  const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:'not to scale',sheet:sh,what:'iso'};}
 // Bowl section (both tiers, the side picked above the section) on one landscape sheet, largest standard scale that fits.
 function plotSection(sh){const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title-sb;let fit=null;
   for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,svg=drawSection(ZR[P.sec],{fs:sh.txt*25.4*sc.ratio}),v=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number),w=v[0]*k,h=v[1]*k;
@@ -1671,6 +1683,8 @@ const loadB64=url=>new Promise((ok,no)=>{const x=new XMLHttpRequest();x.open('GE
 function pdfReadySvg(svg){                                       // light-theme colours, no text halos, the embedded font
   const vars=Object.fromEntries([...((document.querySelector('style').textContent.match(/:root\{[^}]*\}/)||[''])[0]).matchAll(/(--[\w-]+):([^;}]+)/g)].map(m=>[m[1],m[2].trim()]));
   for(let i=0;i<3;i++)svg=svg.replace(/var\((--[\w-]+)\)/g,(m,k)=>vars[k]||'#888888');
+  svg=svg.replace(/ textLength="[^"]*"| lengthAdjust="[^"]*"/g,'');                  // svg2pdf can turn fitted text widths into Infinity
+  svg=svg.replace(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*[\d.]+\s*)?\)/g,(m,r,g,b)=>'#'+[r,g,b].map(v=>(+v).toString(16).padStart(2,'0')).join(''));   // svg2pdf wants hex colours
   return svg.replace(/ paint-order="stroke" stroke="[^"]*" stroke-width="[^"]*"( stroke-linejoin="round")?/g,'').replace(/font-family="[^"]*"/g,'font-family="DVS"')
     .replace(/font-weight="(\d+)"/g,(m,w)=>`font-weight="${+w>=600?'bold':'normal'}"`);}   // the PDF fonts are regular and bold
 async function exportPdfSet(){
@@ -1680,8 +1694,8 @@ async function exportPdfSet(){
     const [reg,bold]=await Promise.all([loadB64('vendor/fonts/DejaVuSansCondensed.ttf'),loadB64('vendor/fonts/DejaVuSansCondensed-Bold.ttf')]);
     // order: 11x17 section, plan, table pages; then ARCH E section, plan, table pages (A3 / A0 in metric)
     const sheets=PLOT_SHEETS(),small=sheets[0],big=sheets[1];
-    const sets=[[small,[plotOne(small,'section'),plotOne(small,'plan')],{pw:imperial()?11:297/25.4,ph:imperial()?17:420/25.4,m:0.25}],
-                [big,[plotOne(big,'section'),plotOne(big,'plan',1/16,true)],{pw:imperial()?36:841/25.4,ph:imperial()?48:1189/25.4,m:0.5}]];
+    const sets=[[small,[plotOne(small,'section'),plotOne(small,'plan'),plotIso(small,'SW'),plotIso(small,'SE')],{pw:imperial()?11:297/25.4,ph:imperial()?17:420/25.4,m:0.25}],
+                [big,[plotOne(big,'section'),plotOne(big,'plan'),plotIso(big,'SW'),plotIso(big,'SE')],{pw:imperial()?36:841/25.4,ph:imperial()?48:1189/25.4,m:0.5}]];
     if(sets.some(([,d])=>d.some(p=>!p)))throw new Error('A drawing does not fit its sheet at any standard scale.');
     const first=sets[0][1][0],{jsPDF}=window.jspdf,doc=new jsPDF({orientation:'l',unit:'in',format:[first.sheet.w,first.sheet.h]});
     doc.addFileToVFS('DVS.ttf',reg);doc.addFont('DVS.ttf','DVS','normal');doc.addFileToVFS('DVSB.ttf',bold);doc.addFont('DVSB.ttf','DVS','bold');
@@ -1692,7 +1706,7 @@ async function exportPdfSet(){
         host.innerHTML=pdfReadySvg(p.svg);await doc.svg(host.firstElementChild,{x:0,y:0,width:p.sheet.w,height:p.sheet.h});}
       pdfTables(doc,{...tab,fit:true});}
     host.remove();
-    const draw=sets.flatMap(([,d])=>d);
+    const draw=sets.flatMap(([,d])=>d.filter(p=>p.what!=='iso'));
     const name=`${SPORTS[P.sport].name}_${slug()}.pdf`;offer(name,doc.output('blob'));
     toast(`${name} saved: section ${draw[0].scale} / ${draw[2].scale}, plan ${draw[1].scale} / ${draw[3].scale}.`);
   }catch(e){toast('The PDF set could not be built: '+e.message);}

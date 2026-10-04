@@ -943,7 +943,7 @@ function buildDAE(P,ZR,CH){
   return `<?xml version="1.0" encoding="utf-8"?>\n<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1"><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset><library_effects>${fx('concrete','0.74 0.75 0.73')}${fx('pitch','0.33 0.55 0.27')}</library_effects><library_materials><material id="concrete" name="Concrete"><instance_effect url="#concrete-fx"/></material><material id="pitch" name="Pitch"><instance_effect url="#pitch-fx"/></material></library_materials><library_geometries>${geos.join('')}</library_geometries><library_visual_scenes><visual_scene id="Scene">${nodes.join('')}</visual_scene></library_visual_scenes><scene><instance_visual_scene url="#Scene"/></scene></COLLADA>`;
 }
 /*ENDCORE*/
-const VERSION='2026.10.04.1';
+const VERSION='2026.10.04.2';
 const KEY='sightline-v2';
 let P, OPTS=[], CUR=null, ROWS=[], M=null, DL=null;
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.P){P=fixP(Object.assign(defaults(),migrate(s.P)));OPTS=s.OPTS||[];}}catch(e){}
@@ -1261,8 +1261,8 @@ function drawDetail(all,o={}){
   const IN=25.4,m=DETMODE,E=P.eye,hr=4.5*IN,headTop=4.45*IN,r0=rs[0],last=rs[rs.length-1],band=36*IN;
   const ey=rs.map(r=>{const e=detEye(r,m);return {x:e.ex,z:e.ez};}),Cs=rs.map((r,i)=>rowC(rs,i,m));
   const cMin=Math.min(...Cs.filter(c=>c!=null));
-  const X1=last.x+last.T+4400,X0=-Math.max(4500,0.1*X1),W=X1-X0,fs=o.fs||W/110,labels=!o.sparse;   // sparse: rows too tight on paper for per-row text
-  const Z1=Math.max(...ey.map(e=>e.z))+hr*2+fs*2.5,Z0=-(band+fs*3.2),H=Z1-Z0;
+  const NF=!!o.noFocus,X1=last.x+last.T+4400,X0=NF?rs[0].x-Math.max(2500,(o.fs||300)*6):-Math.max(4500,0.1*X1),W=X1-X0,fs=o.fs||W/110,labels=!o.sparse;   // sparse: rows too tight on paper for per-row text
+  const Z1=Math.max(...ey.map(e=>e.z))+hr*2+fs*2.5,Z0=NF?rs[0].z-slabT()-fs*3.4:-(band+fs*3.2),H=Z1-Z0;   // no focus: frame the tier only
   const X=x=>(x-X0).toFixed(1),Y=z=>(Z1-z).toFixed(1),c='var(--dim)',tk=fs*.3,f1=v=>(+v).toFixed(1);
   const tickH=(x,z)=>`<line x1="${f1(+X(x)-tk)}" y1="${Y(z)}" x2="${f1(+X(x)+tk)}" y2="${Y(z)}" stroke="${c}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`;
   const tickV=(x,z)=>`<line x1="${X(x)}" y1="${f1(+Y(z)-tk)}" x2="${X(x)}" y2="${f1(+Y(z)+tk)}" stroke="${c}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`;
@@ -1271,15 +1271,15 @@ function drawDetail(all,o={}){
     +`<text x="${f1(tx)}" y="${f1(ym)}" font-size="${f1(fs*.7)}" fill="${c}" font-weight="600" text-anchor="middle" transform="rotate(-90 ${f1(tx)} ${f1(ym)})">${lab}</text>`;};
   let s=`<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" role="img" aria-label="Tier 1 sightline detail">`;
   // pitch, buffer and the point-of-focus line
-  s+=`<rect x="0" y="${Y(0)}" width="${X(0)}" height="${band}" fill="var(--pitch)"/><rect x="${X(0)}" y="${Y(0)}" width="${f1(bufX)}" height="${band}" fill="var(--grass2)"/>`
+  if(!NF){s+=`<rect x="0" y="${Y(0)}" width="${X(0)}" height="${band}" fill="var(--pitch)"/><rect x="${X(0)}" y="${Y(0)}" width="${f1(bufX)}" height="${band}" fill="var(--grass2)"/>`
     +`<text x="${f1(+X(0)/2)}" y="${f1(+Y(0)+band/2+fs*.25)}" font-size="${f1(fs*.65)}" fill="#fff" font-weight="600" text-anchor="middle">Pitch</text>`
     +`<text x="${f1(+X(0)+bufX/2)}" y="${f1(+Y(0)+band/2+fs*.25)}" font-size="${f1(fs*.65)}" fill="#fff" font-weight="600" text-anchor="middle">Buffer</text>`
-    +`<line x1="${X(0)}" y1="${f1(+Y(0)+band)}" x2="${X(0)}" y2="${f1(+Y(0)-fs*1.6)}" stroke="${FOCAL}" stroke-width="1.2" vector-effect="non-scaling-stroke"/><circle cx="${X(0)}" cy="${Y(0)}" r="${f1(fs*.22)}" fill="var(--ink)"/>`;
+    +`<line x1="${X(0)}" y1="${f1(+Y(0)+band)}" x2="${X(0)}" y2="${f1(+Y(0)-fs*1.6)}" stroke="${FOCAL}" stroke-width="1.2" vector-effect="non-scaling-stroke"/><circle cx="${X(0)}" cy="${Y(0)}" r="${f1(fs*.22)}" fill="var(--ink)"/>`;}
   s+=`<polygon points="${profileOf(rs,ti).map(p=>X(p[0])+','+Y(p[1])).join(' ')}" fill="var(${r0.seat==='bench'?'--seat-bench':'--seat-chair'})" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
   s+=`<rect x="${X(r0.x-25.4)}" y="${Y(r0.z+P.railH)}" width="50.8" height="${P.railH.toFixed(1)}" fill="#000000"/>`;   // 26 in guard rail, 2 in thick
   // sightlines to the point of focus
   rs.forEach((r,i)=>{const e=ey[i],C=Cs[i],ok=C==null||C>=r.target-0.05;
-    s+=`<line x1="${X(e.x)}" y1="${Y(e.z)}" x2="${X(0)}" y2="${Y(0)}" stroke="var(${ok?'--sl-ok':'--sl-low'})" stroke-width="0.6" opacity=".8" vector-effect="non-scaling-stroke"/>`;});
+    const xe=NF?X0:0;s+=`<line x1="${X(e.x)}" y1="${Y(e.z)}" x2="${X(xe)}" y2="${Y(e.z*xe/e.x)}" stroke="var(${ok?'--sl-ok':'--sl-low'})" stroke-width="0.6" opacity=".8" vector-effect="non-scaling-stroke"/>`;});
   rs.forEach((r,i)=>{const e=ey[i],cy=e.z+headTop-hr,C=Cs[i],low=C!=null&&C<r.target-0.05,isMin=C!=null&&Math.abs(C-cMin)<1e-6;
     // row number on the tread, riser height left of its riser
     if(labels)s+=`<text x="${X(r.x+(m==='stand'?4*IN:r.T*.17))}" y="${f1(+Y(r.z)-fs*.18)}" font-size="${f1(fs*.5)}" fill="var(--ink)" opacity=".8" font-weight="600" text-anchor="middle">${r.row}</text>`;
@@ -1295,15 +1295,16 @@ function drawDetail(all,o={}){
   s+=ln(xd,last.z,xd,zTop)+tickH(xd,last.z)+tickH(xd,zTop)
     +`<text x="${f1(+X(xd)+fs*.35)}" y="${f1(ym+fs*.2)}" font-size="${f1(fs*.55)}" fill="${c}">${m==='stand'?`${L(E.stH+HEAD)} standing head height`:`${L(E.sitH)} sitting eye height`}</text>`;
   // vertical: bottom tread above the pitch (left of the leg wall); overall pitch to the top tread (left of the point of focus)
-  s+=vdim(r0.x-fs*.9,0,r0.z,L(r0.z));
-  {const xo=last.x+last.T+2700,ym2=(+Y(0)+ +Y(last.z))/2,tx=+X(xo)+fs*.55;              // overall: pitch to the top tread, right of the bowl
-    s+=ln(xo,0,xo,last.z)+tickH(xo,0)+tickH(xo,last.z)+ln(last.x+last.T,last.z,xo+tk,last.z,0.6)+ln(r0.x,0,xo+tk,0,0.4)
-      +`<text x="${f1(tx)}" y="${f1(ym2)}" font-size="${f1(fs*.7)}" fill="${c}" font-weight="600" text-anchor="middle" transform="rotate(90 ${f1(tx)} ${f1(ym2)})">${L(last.z)}</text>`;}
+  if(!NF)s+=vdim(r0.x-fs*.9,0,r0.z,L(r0.z));
+  else s+=`<text x="${f1(+X(r0.x)-fs*.4)}" y="${f1(+Y(r0.z)+fs*1.1)}" font-size="${f1(fs*.62)}" fill="${c}" text-anchor="end">Bottom tread ${L(r0.z)} above the pitch</text>`;
+  {const z0=NF?r0.z:0,xo=last.x+last.T+2700,ym2=(+Y(z0)+ +Y(last.z))/2,tx=+X(xo)+fs*.55;              // overall: pitch to the top tread, right of the bowl
+    s+=ln(xo,z0,xo,last.z)+tickH(xo,z0)+tickH(xo,last.z)+ln(last.x+last.T,last.z,xo+tk,last.z,0.6)+ln(r0.x,z0,xo+tk,z0,0.4)
+      +`<text x="${f1(tx)}" y="${f1(ym2)}" font-size="${f1(fs*.7)}" fill="${c}" font-weight="600" text-anchor="middle" transform="rotate(90 ${f1(tx)} ${f1(ym2)})">${NF?`${L(last.z-r0.z)} (top tread ${L(last.z)} above the pitch)`:L(last.z)}</text>`;}
   // horizontal chain below the bowl: point of focus to the first riser, then the first and second treads
-  const yc=-(band+fs*1.3),pts=[0,r0.x,r0.x+r0.T,r0.x+r0.T+(rs[1]?rs[1].T:0)].filter((v,i,a)=>i===0||v>a[i-1]+1);
+  const yc=NF?r0.z-slabT()-fs*1.4:-(band+fs*1.3),pts=(NF?[r0.x,r0.x+r0.T,r0.x+r0.T+(rs[1]?rs[1].T:0)]:[0,r0.x,r0.x+r0.T,r0.x+r0.T+(rs[1]?rs[1].T:0)]).filter((v,i,a)=>i===0||v>a[i-1]+1);
   s+=ln(pts[0],yc,pts[pts.length-1],yc);
-  pts.forEach(x=>{s+=tickV(x,yc)+ln(x,0-band*(x===0?1:0)-(x===0?0:band),x,yc+tk*1.6,0.6);});
-  for(let i=1;i<pts.length;i++)s+=`<text x="${f1((+X(pts[i-1])+ +X(pts[i]))/2)}" y="${f1(+Y(yc)+fs*.85)}" font-size="${f1(fs*.6)}" fill="${c}" font-weight="600" text-anchor="middle">${L(pts[i]-pts[i-1])}${i===3?'<tspan font-weight="400"> (TYP.)</tspan>':''}</text>`;
+  pts.forEach(x=>{s+=tickV(x,yc)+(NF?ln(x,r0.z-slabT(),x,yc+tk*1.6,0.6):ln(x,0-band*(x===0?1:0)-(x===0?0:band),x,yc+tk*1.6,0.6));});
+  for(let i=1;i<pts.length;i++)s+=`<text x="${f1((+X(pts[i-1])+ +X(pts[i]))/2)}" y="${f1(+Y(yc)+fs*.85)}" font-size="${f1(fs*.6)}" fill="${c}" font-weight="600" text-anchor="middle">${L(pts[i]-pts[i-1])}${i===pts.length-1&&i>=2?'<tspan font-weight="400"> (TYP.)</tspan>':''}</text>`;
   return s+'</svg>';
 }
 // ---------- isometric view ----------
@@ -1392,7 +1393,9 @@ function drawSpectator(mode,o={}){
   s+=vdim(xe,last.z,eT.z,`${mode==='stand'?'Standing':'Sitting'} eye ${L(mode==='stand'?E.stH:E.sitH)}`,true);
   const xh=xe+fs*8.4;s+=vdim(xh,last.z,eT.z+HEAD,`Head ${L((mode==='stand'?E.stH:E.sitH)+HEAD)}`,true)+ln(eT.x,eT.z+HEAD,xh+tk,eT.z+HEAD,0.5)+ln(last.x+last.T,last.z,xh+tk,last.z,0.5);
   // horizontal eye position and tread depth on the middle row; riser of the back row
-  s+=hdim(m.x,em.x,m.z-14*IN,mode==='stand'?`Eye ${L(E.stOff)} from front riser`:`Eye at back riser, ${inchText(m.T)}`);
+  if(mode==='stand'){const zc=m.z-14*IN;s+=hdim(m.x,em.x,zc,inchText(em.x-m.x))+hdim(em.x,m.x+m.T,zc,inchText(m.x+m.T-em.x))     // chain: front riser, eye line, back riser
+    +ln(em.x,em.z,em.x,zc-tk,0.5);}
+  else s+=hdim(m.x,em.x,m.z-14*IN,`Eye at back riser, ${inchText(m.T)}`);
   s+=hdim(m.x,m.x+m.T,m.z-30*IN,`Tread ${inchText(m.T)}`);
   if(last.riser!=null)s+=vdim(last.x-4*IN,m.z,last.z,`Riser ${inchText(last.riser)}`,false);
   // C-value: the back spectator's sightline over the eye of the one in front
@@ -1683,16 +1686,16 @@ function plotIso(sh,view){const keep=ISOVIEW;ISOVIEW=view;const svg0=drawIso();I
     +trueStrokes(svg0,1/k).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="xMidYMid meet" `)+tb+'</svg>';
   const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:'not to scale',sheet:sh,what:'iso'};}
 // One tier's sightline section (East), with its sightlines, C-values, risers and dimensions, at the largest standard scale that fits.
-function plotTier(sh,ti){const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title-sb,rows=ZR.T.filter(r=>r.tier===ti);let fit=null;
-  for(const sc of PLOT_SCALES()){const k=1/sc.ratio/25.4,svg=drawDetail(ZR.T,{tier:ti,fs:sh.txt*25.4*sc.ratio,sparse:(rows[1]||rows[0]).T*k<sh.txt*2.2}),v=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number),w=v[0]*k,h=v[1]*k;
-    if(w<=aw&&h<=ah){fit={sc,k,w,h,svg,u:25.4*sc.ratio};break;}}
+function plotTier(sh,ti,fixScale){/* fixScale: use this scale (Tier 2 follows Tier 1); later tiers drop the point of focus */const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,aw=sh.w-2*B,ah=sh.h-2*B-title-sb,rows=ZR.T.filter(r=>r.tier===ti);let fit=null;
+  for(const sc of (fixScale?[fixScale]:PLOT_SCALES())){const k=1/sc.ratio/25.4,svg=drawDetail(ZR.T,{tier:ti,noFocus:ti>0,fs:sh.txt*25.4*sc.ratio,sparse:(rows[1]||rows[0]).T*k<sh.txt*2.2}),v=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number),w=v[0]*k,h=v[1]*k;
+    if((w<=aw&&h<=ah)||fixScale){fit={sc,k,w,h,svg,u:25.4*sc.ratio};break;}}
   if(!fit)return null;
   const x=B+(aw-fit.w)/2,y=B+(ah-fit.h)/2,Sp=SPORTS[P.sport],ty=sh.h-B-sh.txt*.4;
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${f(sh.w)}in" height="${f(sh.h)}in" viewBox="0 0 ${f(sh.w)} ${f(sh.h)}" font-family="Archivo, 'Arial Narrow', Arial, sans-serif"><rect width="${f(sh.w)}" height="${f(sh.h)}" fill="#fff"/>`
     +trueStrokes(fit.svg,fit.u).replace('<svg ',`<svg x="${f(x)}" y="${f(y)}" width="${f(fit.w)}" height="${f(fit.h)}" preserveAspectRatio="xMidYMid meet" `)+scaleBar(sh,fit)
     +`<text x="${f(sh.w-B)}" y="${f(ty-sh.txt*1.6)}" font-size="${f(sh.txt*1.5)}" font-weight="800" text-anchor="end">Sightline Schematic: Bowl section, Tier ${ti+1}, ${zoneName(P,'T')}, ${DETMODE==='stand'?'standing':'sitting'}</text>`
     +`<text x="${f(sh.w-B)}" y="${f(ty)}" font-size="${f(sh.txt*.95)}" text-anchor="end">${Sp.name} (${Sp.org}) | ${optName()} | Scale ${fit.sc.label} | ${sh.name} landscape | ${new Date().toLocaleDateString()}</text></svg>`;
-  const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:fit.sc.label,sheet:sh,what:'tier'};}
+  const tmp=document.createElement('div');tmp.innerHTML=svg;titleize(tmp);return {svg:tmp.innerHTML,scale:fit.sc.label,sc:fit.sc,sheet:sh,what:'tier'};}
 function scaleBar(sh,fit){const B=sh.B,f=v=>(+v).toFixed(4),sb=sh.txt*4.2,title=sh.txt*3.2,per=(imperial()?304.8:1000)*fit.k,divs=[1,2,5,10,20,25,50,100,200,500];let u=divs[0];for(const q of divs)if(q*5*per<=sh.w*.22)u=q;
   const gy=sh.h-B-title-sb+sh.txt*1.6,bh=sh.txt*.7;let g=`<text x="${f(B)}" y="${f(gy)}" font-size="${f(sh.txt*1.1)}" font-weight="700">Scale ${fit.sc.label}</text>`;
   for(let i=0;i<5;i++)g+=`<rect x="${f(B+i*u*per)}" y="${f(gy+sh.txt*.5)}" width="${f(u*per)}" height="${f(bh)}" fill="${i%2?'#fff':'#000'}" stroke="#000" stroke-width="${f(sh.txt*.06)}"/>`;
@@ -1773,7 +1776,8 @@ async function exportPdfSet(kind){
     await loadJS('vendor/jspdf.umd.min.js');await loadJS('vendor/svg2pdf.umd.min.js');
     const [reg,bold]=await Promise.all([loadB64('vendor/fonts/DejaVuSansCondensed.ttf'),loadB64('vendor/fonts/DejaVuSansCondensed-Bold.ttf')]);
     const sheets=PLOT_SHEETS(),small=sheets[0],big=kind==='archE'?sheets[1]:sheets[0];
-    const draws=[plotSection(big,'T'),...Array.from({length:P.tierCount},(_,ti)=>plotTier(big,ti)),plotOne(big,'plan'),plotIso(big,'SW'),plotIso(big,'SE'),plotSpectators(small)];
+    const t1=plotTier(big,0),tiers=[t1,...Array.from({length:P.tierCount-1},(_,i)=>plotTier(big,i+1,t1&&t1.sc))];   // Tier 2 at the Tier 1 scale
+    const draws=[plotSection(big,'T'),...tiers,plotOne(big,'plan'),plotIso(big,'SW'),plotIso(big,'SE'),plotSpectators(small)];
     if(draws.some(p=>!p))throw new Error('A drawing does not fit its sheet at any standard scale.');
     const port={pw:small.h,ph:small.w,m:0.25};                                             // 11 x 17 (A3) portrait pages
     const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'l',unit:'in',format:[draws[0].sheet.w,draws[0].sheet.h]});
@@ -1783,7 +1787,7 @@ async function exportPdfSet(kind){
       host.innerHTML=pdfReadySvg(p.svg);await doc.svg(host.firstElementChild,{x:0,y:0,width:p.sheet.w,height:p.sheet.h});}
     host.remove();
     pdfProjectInfo(doc,port);pdfRowSchedule(doc,port,'T');pdfTables(doc,{...port,fit:true});
-    const name=`${SPORTS[P.sport].name}_${slug()}.pdf`;offer(name,doc.output('blob'));
+    const name=`${SPORTS[P.sport].name}_${slug()}_${kind==='archE'?'ARCH-E':'Tabloid'}.pdf`;offer(name,doc.output('blob'));
     toast(`${name} saved (${doc.getNumberOfPages()} pages).`);
   }catch(e){toast('The project set could not be built: '+e.message);}
   finally{btn.disabled=false;}
